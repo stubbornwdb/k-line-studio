@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette is defined once as RGB triples so Tailwind can apply opacity to it,
+   and the chart theme can read the same values. */
+:root {
+  --panel: 255 255 255;
+  --panel-soft: 244 246 250;
+  --edge: 222 226 234;
+  --ink: 24 28 35;
+  --ink-muted: 108 116 132;
+  --accent: 41 98 255;
+  --bull: 8 153 129;
+  --bear: 242 54 69;
+}
+
+.dark {
+  --panel: 19 23 34;
+  --panel-soft: 26 31 44;
+  --edge: 43 49 65;
+  --ink: 209 212 220;
+  --ink-muted: 132 142 156;
+  --accent: 41 98 255;
+  --bull: 38 166 154;
+  --bear: 239 83 80;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-panel text-ink font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Consistent, unobtrusive scrollbars in both themes. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--edge)) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--edge));
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .field {
+    @apply h-8 rounded border border-edge bg-panel-soft px-2 text-xs text-ink
+      outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium;
+  }
+}
