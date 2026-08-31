@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from './client'
 import type {
+  BatchJob,
+  BatchJobInput,
   CandleSeries,
   CandleJob,
   Drawing,
@@ -255,6 +257,14 @@ export function useAlertMutations(exchange: string, symbol?: string) {
     onSuccess: invalidate,
   })
   return { create, update, remove, symbol }
+}
+
+export async function startBatchFetch(input: BatchJobInput): Promise<BatchJob> {
+  return api.post<BatchJob>('/candle-jobs/batch', input)
+}
+
+export async function pollBatchJob(jobId: string): Promise<BatchJob> {
+  return api.get<BatchJob>(`/candle-jobs/batch/${jobId}`)
 }
 
 export function useDrawings(exchange: string, symbol: string) {

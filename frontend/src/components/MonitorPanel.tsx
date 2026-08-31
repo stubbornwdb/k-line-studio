@@ -1,9 +1,12 @@
 import clsx from 'clsx'
 import {
+  ArrowDownUp,
   Bell,
   BellOff,
   ChevronRight,
   CircleDollarSign,
+  Clock,
+  Download,
   ListFilter,
   Minus,
   Plus,
@@ -26,12 +29,28 @@ import type {
   PriceAlertInput,
   Ticker,
 } from '@/api/types'
+import { BatchFetchDialog } from '@/components/BatchFetchDialog'
 import { Button } from '@/components/ui/Button'
 import { Label, Select, TextInput } from '@/components/ui/Field'
-import { formatCompact, formatPercent, formatPrice, priceDecimals } from '@/lib/format'
+import { formatCompact, formatListingAge, formatPercent, formatPrice, priceDecimals } from '@/lib/format'
 import { useSession } from '@/store/useSession'
 
 type View = 'favorites' | 'new_listings' | 'gainers' | 'losers'
+type NewListingSort = 'time' | 'change' | 'volume'
+
+const AGE_PRESETS = [
+  { days: 7, label: '7天' },
+  { days: 30, label: '30天' },
+  { days: 90, label: '90天' },
+  { days: 180, label: '半年' },
+  { days: 365, label: '1年' },
+] as const
+
+const SORT_OPTIONS: { value: NewListingSort; label: string }[] = [
+  { value: 'time', label: '上线时间' },
+  { value: 'change', label: '涨跌幅' },
+  { value: 'volume', label: '成交量' },
+]
 
 interface Props {
   exchange: string
@@ -68,12 +87,35 @@ export function MonitorPanel({
   const [alertKind, setAlertKind] = useState<AlertKind>('price')
   const [alertDirection, setAlertDirection] = useState<AlertDirection>('above')
   const [threshold, setThreshold] = useState('')
+  const [ageDays, setAgeDays] = useState(90)
+  const [sortBy, setSortBy] = useState<NewListingSort>('time')
+  const [batchOpen, setBatchOpen] = useState(false)
   const { data: watchlist } = useWatchlist()
   const watchlistMutations = useWatchlistMutations()
   const { data: alerts } = useAlerts(exchange)
   const alertMutations = useAlertMutations(exchange)
 
-  const rows = overview?.[view] ?? []
+  const rawRows = overview?.[view] ?? []
+
+  const rows = useMemo(() => {
+    if (view !== 'new_listings') return rawRows
+
+    const cutoff = Date.now() - ageDays * 24 * 60 * 60 * 1000
+    const filtered = rawRows.filter(
+      (t) => t.listed_at !== null && t.listed_at >= cutoff,
+    )
+
+    if (sortBy === 'time') {
+      return filtered.sort((a, b) => (b.listed_at ?? 0) - (a.listed_at ?? 0))
+    }
+    if (sortBy === 'change') {
+      return filtered.sort((a, b) => b.change_24h_pct - a.change_24h_pct)
+    }
+    return filtered.sort(
+      (a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0),
+    )
+  }, [view, rawRows, ageDays, sortBy])
+
   const favoriteIds = useMemo(
     () =>
       new Map(
@@ -145,6 +187,76 @@ export function MonitorPanel({
             </button>
           ))}
         </div>
+
+        {view === 'new_listings' && (
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-ink-muted" />
+              <span className="text-2xs text-ink-muted">上线时间</span>
+              <div className="ml-auto flex gap-0.5">
+                {AGE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.days}
+                    type="button"
+                    onClick={() => setAgeDays(preset.days)}
+                    className={clsx(
+                      'rounded px-1.5 py-0.5 text-2xs transition-colors',
+                      ageDays === preset.days
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-ink-muted hover:text-ink',
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <ArrowDownUp className="h-3 w-3 text-ink-muted" />
+              <span className="text-2xs text-ink-muted">排序</span>
+              <div className="ml-auto flex gap-0.5">
+                {SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSortBy(opt.value)}
+                    className={clsx(
+                      'rounded px-1.5 py-0.5 text-2xs transition-colors',
+                      sortBy === opt.value
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-ink-muted hover:text-ink',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-2xs text-ink-muted">
+                共 {rows.length} 个次新合约
+              </span>
+              <Button
+                size="sm"
+                title="批量拉取 K 线"
+                disabled={rows.length === 0}
+                onClick={() => setBatchOpen(true)}
+              >
+                <Download className="h-3 w-3" />
+                批量拉取
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {view === 'new_listings' && (
+          <BatchFetchDialog
+            open={batchOpen}
+            exchange={exchange}
+            tickers={rows}
+            onClose={() => setBatchOpen(false)}
+          />
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -161,6 +273,7 @@ export function MonitorPanel({
                 ticker={ticker}
                 favoriteId={favoriteIds.get(ticker.symbol)}
                 active={ticker.symbol === currentSymbol}
+                showAge={view === 'new_listings'}
                 onOpen={onOpen}
                 onToggleFavorite={(id) => {
                   if (id) watchlistMutations.remove.mutate(id)
@@ -284,12 +397,14 @@ function TickerRow({
   ticker,
   favoriteId,
   active,
+  showAge,
   onOpen,
   onToggleFavorite,
 }: {
   ticker: Ticker
   favoriteId?: number
   active: boolean
+  showAge: boolean
   onOpen: (symbol: string) => void
   onToggleFavorite: (id?: number) => void
 }) {
@@ -306,6 +421,11 @@ function TickerRow({
         <div className="flex items-center gap-1.5">
           <span className="truncate text-xs font-semibold">{ticker.display}</span>
           {active && <span className="chip bg-accent/15 text-accent">当前</span>}
+          {showAge && ticker.listed_at !== null && (
+            <span className="chip bg-panel-soft text-ink-muted">
+              {formatListingAge(ticker.listed_at)}
+            </span>
+          )}
         </div>
         <div className="mt-1 flex items-center gap-2 font-mono text-2xs">
           <span>{formatPrice(ticker.last, decimals)}</span>

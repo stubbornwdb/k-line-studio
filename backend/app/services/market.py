@@ -18,6 +18,7 @@ from app.services.symbols import catalog
 
 _CACHE_TTL_SECONDS = 10.0
 _LIST_LIMIT = 30
+_NEW_LISTING_LIMIT = 200
 
 
 @dataclass(slots=True)
@@ -59,6 +60,8 @@ class MarketService:
         session: AsyncSession,
         exchange: str,
         selected_symbol: str | None = None,
+        *,
+        new_listing_days: int = 365,
     ) -> MarketOverviewOut:
         snapshot = await self.snapshot(exchange)
         watchlist = (
@@ -101,12 +104,12 @@ class MarketService:
             for item in watchlist
             if item.symbol in snapshot.tickers
         ]
-        cutoff = now_ms() - 365 * 24 * 60 * 60 * 1000
+        cutoff = now_ms() - new_listing_days * 24 * 60 * 60 * 1000
         new_listings = sorted(
             (row for row in all_rows if row.listed_at is not None and row.listed_at >= cutoff),
             key=lambda row: (row.listed_at or 0, row.change_24h_pct),
             reverse=True,
-        )[:_LIST_LIMIT]
+        )[:_NEW_LISTING_LIMIT]
         gainers = sorted(all_rows, key=lambda row: row.change_24h_pct, reverse=True)[:_LIST_LIMIT]
         losers = sorted(all_rows, key=lambda row: row.change_24h_pct)[:_LIST_LIMIT]
         return MarketOverviewOut(
