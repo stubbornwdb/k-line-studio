@@ -103,7 +103,13 @@ export const useSession = create<SessionState>()(
       setMarket: (exchange, symbol) =>
         set({ exchange, symbol, replay: { active: false, index: 0, playing: false, speed: 4 } }),
       setSymbol: (symbol) =>
-        set({ symbol, selectedNoteId: null, selectedDrawingId: null, activeTool: 'none' }),
+        set({
+          symbol,
+          selectedNoteId: null,
+          selectedDrawingId: null,
+          activeTool: 'none',
+          replay: { active: false, index: 0, playing: false, speed: 4 },
+        }),
       setInterval: (interval) =>
         set((state) => ({
           interval,

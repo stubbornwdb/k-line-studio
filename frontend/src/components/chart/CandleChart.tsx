@@ -51,6 +51,7 @@ interface Props {
   candles: Candle[]
   notes: Note[]
   drawings: Drawing[]
+  isPlaceholderData: boolean
   theme: ThemeName
   timezone: Timezone
   showVolume: boolean
@@ -83,6 +84,8 @@ const NOTE_STYLE: Record<Note['kind'], { color: string; shape: SeriesMarker<Time
   observation: { color: '#f0b90b', shape: 'circle' },
 }
 
+const DEFAULT_LIVE_VISIBLE_BARS = 160
+
 /** A shape being placed: first anchor down, second one still pending. */
 interface Pending {
   kind: 'trendline' | 'measure'
@@ -96,6 +99,7 @@ export function CandleChart(props: Props) {
     candles,
     notes,
     drawings,
+    isPlaceholderData,
     theme,
     timezone,
     showVolume,
@@ -369,16 +373,23 @@ export function CandleChart(props: Props) {
     candleRef.current?.setData(view.bars)
     volumeRef.current?.setData(showVolume ? view.volume : [])
 
-    // Fit once per selection, on the first non-empty payload. Fitting on an
-    // empty series (the initial render, before the fetch resolves) would leave
-    // the viewport anchored to nothing; refitting on every update would fight
-    // the user's zoom and jump on each replay step.
-    if (view.bars.length > 0 && fittedKeyRef.current !== fitKey) {
+    // Only reframe when real data for a new selection arrives. Placeholder
+    // data is the previous symbol, and using it here would lock the viewport
+    // to the wrong scale until the user manually zooms.
+    if (!isPlaceholderData && view.bars.length > 0 && fittedKeyRef.current !== fitKey) {
       fittedKeyRef.current = fitKey
-      chartRef.current?.timeScale().fitContent()
+      const scale = chartRef.current?.timeScale()
+      if (scale) {
+        if (visibleBars === null && view.bars.length > DEFAULT_LIVE_VISIBLE_BARS) {
+          const start = Math.max(0, view.bars.length - DEFAULT_LIVE_VISIBLE_BARS)
+          scale.setVisibleLogicalRange({ from: start, to: view.bars.length - 1 + 8 })
+        } else {
+          scale.fitContent()
+        }
+      }
     }
     bumpViewport()
-  }, [view, showVolume, fitKey, bumpViewport])
+  }, [view, showVolume, fitKey, bumpViewport, isPlaceholderData, visibleBars])
 
   // --- plot-area size (drives the overlay's viewBox) ------------------------
   useEffect(() => {

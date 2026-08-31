@@ -341,6 +341,7 @@ export default function App() {
               candles={candles}
               notes={notes}
               drawings={drawings}
+              isPlaceholderData={query.isPlaceholderData}
               theme={session.theme}
               timezone={session.timezone}
               showVolume={session.showVolume}

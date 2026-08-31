@@ -125,8 +125,12 @@ async function waitForCandleJob(
   const first = await api.post<CandleJob>('/candle-jobs', args)
   onProgress?.(first)
   let current = first
+  // Cached windows often finish before the first scheduled poll; check once
+  // immediately so symbol switches feel instant when the data is already local.
+  current = await api.get<CandleJob>(`/candle-jobs/${current.id}`)
+  onProgress?.(current)
   while (current.status === 'queued' || current.status === 'running') {
-    await new Promise((resolve) => window.setTimeout(resolve, 450))
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
     current = await api.get<CandleJob>(`/candle-jobs/${current.id}`)
     onProgress?.(current)
   }
