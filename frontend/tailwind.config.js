@@ -20,8 +20,8 @@ export default {
         bear: 'rgb(var(--bear) / <alpha-value>)',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: ['Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'sans-serif'],
+        mono: ['SF Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
         '2xs': ['0.6875rem', { lineHeight: '1rem' }],

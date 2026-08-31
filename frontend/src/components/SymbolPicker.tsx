@@ -61,7 +61,7 @@ export function SymbolPicker({ exchange, symbol, onSelect }: Props) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-8 min-w-[9rem] items-center justify-between gap-2 rounded border
+        className="flex h-9 min-w-[10rem] items-center justify-between gap-2 rounded-sm border
           border-edge bg-panel-soft px-2.5 text-xs font-semibold transition-colors
           hover:border-ink-muted"
       >
@@ -71,7 +71,7 @@ export function SymbolPicker({ exchange, symbol, onSelect }: Props) {
 
       {open && (
         <div
-          className="absolute left-0 top-9 z-40 w-72 overflow-hidden rounded-lg border
+          className="absolute left-0 top-10 z-40 w-72 overflow-hidden rounded-sm border
             border-edge bg-panel shadow-2xl"
         >
           <div className="flex items-center gap-2 border-b border-edge px-2.5 py-2">

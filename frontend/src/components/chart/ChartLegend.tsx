@@ -32,10 +32,10 @@ export function ChartLegend({
   const up = bar ? bar.c >= bar.o : true
 
   return (
-    <div className="pointer-events-none absolute left-3 top-2 z-10 space-y-1 font-mono text-2xs">
+    <div className="pointer-events-none absolute left-4 top-3 z-10 space-y-1.5 font-mono text-2xs">
       <div className="pointer-events-auto flex items-center gap-2 font-sans">
-        <span className="text-xs font-semibold tracking-tight">{symbol}</span>
-        <span className="chip bg-panel-soft text-ink-muted">{interval}</span>
+        <span className="text-sm font-semibold tracking-tight">{symbol}</span>
+        <span className="chip border border-edge bg-panel text-ink-muted">{interval}</span>
         <span className="text-ink-muted">{exchangeName}</span>
       </div>
 

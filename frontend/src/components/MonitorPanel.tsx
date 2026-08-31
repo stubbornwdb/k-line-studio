@@ -7,9 +7,9 @@ import {
   CircleDollarSign,
   Clock,
   Download,
-  ListFilter,
   Minus,
   Plus,
+  Star,
   Volume2,
   VolumeX,
   X,
@@ -45,6 +45,8 @@ const AGE_PRESETS = [
   { days: 90, label: '90天' },
   { days: 180, label: '半年' },
   { days: 365, label: '1年' },
+  { days: 730, label: '2年' },
+  { days: 1095, label: '3年' },
 ] as const
 
 const SORT_OPTIONS: { value: NewListingSort; label: string }[] = [
@@ -145,6 +147,12 @@ export function MonitorPanel({
   const listingLoading = newListings.isLoading && listingRows.length === 0
   const listingError = newListings.isError ? ((newListings.error as Error)?.message ?? '次新币加载失败') : null
   const listingEmpty = !listingLoading && !listingError && listingRows.length === 0
+  const summary = [
+    { label: '收藏', value: overview?.favorites.length ?? 0 },
+    { label: '次新', value: overview?.new_listings.length ?? 0 },
+    { label: '上涨', value: overview?.gainers.length ?? 0 },
+    { label: '下跌', value: overview?.losers.length ?? 0 },
+  ]
 
   const createAlert = () => {
     const value = Number(threshold)
@@ -165,16 +173,16 @@ export function MonitorPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-edge px-2.5 py-2">
+    <div className="flex h-full min-h-0 flex-col bg-panel">
+      <div className="border-b border-edge px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              <CircleDollarSign className="h-3.5 w-3.5 text-accent" />
-              行情雷达
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <CircleDollarSign className="h-4 w-4 text-ink-muted" />
+              盯盘
             </div>
-            <p className="mt-0.5 text-2xs text-ink-muted">
-              当前交易所 · {refreshLabel(refreshIntervalMs)}
+            <p className="mt-1 text-2xs text-ink-muted">
+              {exchange.toUpperCase()} · {refreshLabel(refreshIntervalMs)}
             </p>
           </div>
           <Button
@@ -190,17 +198,17 @@ export function MonitorPanel({
             )}
           </Button>
         </div>
-        <div className="mt-2 grid grid-cols-4 gap-1 rounded bg-panel-soft p-1">
+        <div className="mt-3 grid grid-cols-4 border-b border-edge">
           {VIEWS.map((item) => (
             <button
               key={item.value}
               type="button"
               onClick={() => setView(item.value)}
               className={clsx(
-                'rounded px-1 py-1.5 text-2xs transition-colors',
+                'border-b-2 px-1 py-2 text-2xs transition-colors',
                 view === item.value
-                  ? 'bg-accent text-white'
-                  : 'text-ink-muted hover:text-ink',
+                  ? 'border-accent font-medium text-ink'
+                  : 'border-transparent text-ink-muted hover:text-ink',
               )}
             >
               {item.label}
@@ -208,19 +216,30 @@ export function MonitorPanel({
           ))}
         </div>
 
+        <div className="mt-3 grid grid-cols-4 divide-x divide-edge border-y border-edge bg-panel-soft">
+          {summary.map((item) => (
+            <div key={item.label} className="px-2 py-2">
+              <div className="text-[0.625rem] text-ink-muted">{item.label}</div>
+              <div className="mt-0.5 font-mono text-xs font-semibold text-ink">
+                {item.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
         {view === 'new_listings' && (
-          <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-1">
+          <div className="mt-3 space-y-2">
+            <div className="flex min-w-0 items-center gap-2">
               <Clock className="h-3 w-3 text-ink-muted" />
-              <span className="text-2xs text-ink-muted">上线时间</span>
-              <div className="ml-auto flex gap-0.5">
+              <span className="shrink-0 text-2xs font-medium text-ink-muted">上线时间</span>
+              <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
                 {AGE_PRESETS.map((preset) => (
                   <button
                     key={preset.days}
                     type="button"
                     onClick={() => setAgeDays(preset.days)}
                     className={clsx(
-                      'rounded px-1.5 py-0.5 text-2xs transition-colors',
+                      'shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
                       ageDays === preset.days
                         ? 'bg-accent/15 text-accent'
                         : 'text-ink-muted hover:text-ink',
@@ -231,17 +250,17 @@ export function MonitorPanel({
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 items-center gap-2">
               <ArrowDownUp className="h-3 w-3 text-ink-muted" />
-              <span className="text-2xs text-ink-muted">排序</span>
-              <div className="ml-auto flex gap-0.5">
+              <span className="shrink-0 text-2xs font-medium text-ink-muted">排序</span>
+              <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
                 {SORT_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setSortBy(opt.value)}
                     className={clsx(
-                      'rounded px-1.5 py-0.5 text-2xs transition-colors',
+                      'shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
                       sortBy === opt.value
                         ? 'bg-accent/15 text-accent'
                         : 'text-ink-muted hover:text-ink',
@@ -257,7 +276,7 @@ export function MonitorPanel({
               onChange={(event) => setListingQuery(event.target.value)}
               placeholder="搜索交易对，如 BTR、BTCUSDT"
             />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-2xs text-ink-muted">
                 已加载 {listingRows.length}
                 {listingTotal > 0 && ` / ${listingTotal}`} 个次新合约
@@ -339,10 +358,10 @@ export function MonitorPanel({
           </div>
         )}
 
-        <section className="border-t border-edge px-2.5 py-3">
+        <section className="border-t border-edge px-3 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              <Bell className="h-3.5 w-3.5 text-accent" />
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <Bell className="h-3.5 w-3.5 text-ink-muted" />
               当前提醒
             </div>
             <Button size="sm" active={alertOpen} onClick={() => setAlertOpen((value) => !value)}>
@@ -351,7 +370,7 @@ export function MonitorPanel({
           </div>
 
           {alertOpen && (
-            <div className="mt-2 space-y-2 rounded border border-edge bg-panel-soft p-2">
+            <div className="mt-3 space-y-2 rounded-sm border border-edge bg-panel-soft p-2.5">
               <div className="grid grid-cols-2 gap-2">
                 <Label>
                   指标
@@ -405,7 +424,7 @@ export function MonitorPanel({
               .map((alert) => (
                 <div
                   key={alert.id}
-                  className="flex items-center gap-2 rounded border border-edge px-2 py-1.5 text-2xs"
+                  className="flex items-center gap-2 border-b border-edge px-1 py-2 text-2xs last:border-b-0"
                 >
                   {alert.enabled ? (
                     <Bell className="h-3 w-3 text-accent" />
@@ -468,16 +487,16 @@ function TickerRow({
   return (
     <div
       className={clsx(
-        'flex items-center gap-1.5 px-2.5 py-2 transition-colors hover:bg-panel-soft',
-        active && 'bg-accent/5',
+        'relative flex items-center gap-2 border-b border-edge px-3 py-2.5 transition-colors hover:bg-panel-soft',
+        active && 'bg-accent/5 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent',
       )}
     >
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpen(ticker.symbol)}>
         <div className="flex items-center gap-1.5">
           <span className="truncate text-xs font-semibold">{ticker.display}</span>
-          {active && <span className="chip bg-accent/15 text-accent">当前</span>}
+          {active && <span className="text-[0.625rem] text-accent">当前</span>}
           {showAge && ticker.listed_at !== null && (
-            <span className="chip bg-panel-soft text-ink-muted">
+            <span className="text-[0.625rem] text-ink-muted">
               {formatListingAge(ticker.listed_at)}
             </span>
           )}
@@ -499,7 +518,7 @@ function TickerRow({
         title={favoriteId ? '取消收藏' : '收藏'}
         onClick={() => onToggleFavorite(favoriteId)}
       >
-        <ListFilter className="h-3 w-3" />
+        <Star className="h-3 w-3" fill={favoriteId !== undefined ? 'currentColor' : 'none'} />
       </Button>
       <ChevronRight className="h-3 w-3 text-ink-muted" />
     </div>

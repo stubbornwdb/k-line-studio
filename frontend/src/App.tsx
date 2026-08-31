@@ -57,6 +57,10 @@ export default function App() {
   }, [session.theme])
 
   useEffect(() => {
+    document.title = `${session.symbol} · ${session.interval} | K-Line Studio`
+  }, [session.interval, session.symbol])
+
+  useEffect(() => {
     const syncFullscreen = () => {
       setIsFullscreen(document.fullscreenElement === mainRef.current)
     }
@@ -265,7 +269,7 @@ export default function App() {
 
       <div className="flex min-h-0 flex-1">
         <main ref={mainRef} className="flex min-w-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-center justify-end border-b border-edge bg-panel px-3 py-1.5">
+          <div className="flex min-w-0 items-center border-b border-edge bg-panel px-4 py-1.5">
             <ChartToolbar
               canReplay={candles.length > 10}
               drawingCount={(allDrawings ?? []).length}
@@ -394,8 +398,8 @@ export default function App() {
         </main>
 
         {session.sidebarOpen && (
-        <aside className="flex w-72 shrink-0 flex-col border-l border-edge bg-panel xl:w-80">
-          <div className="flex border-b border-edge">
+        <aside className="fixed inset-x-0 bottom-0 z-30 flex h-[min(70vh,32rem)] flex-col border-t border-edge bg-panel shadow-2xl md:relative md:inset-auto md:z-auto md:h-auto md:w-72 md:border-l md:border-t-0 md:shadow-none xl:w-80">
+          <div className="flex shrink-0 border-b border-edge px-2 md:px-0">
             {(
               [
                 ['notes', '笔记'],
@@ -407,10 +411,10 @@ export default function App() {
                 key={tab}
                 type="button"
                 onClick={() => session.setSidebarTab(tab)}
-                className={`flex-1 py-2 text-2xs font-medium transition-colors ${
+                className={`flex-1 border-b-2 py-2.5 text-2xs font-medium transition-colors ${
                   session.sidebarTab === tab
                     ? 'border-b-2 border-accent text-ink'
-                    : 'text-ink-muted hover:text-ink'
+                    : 'border-transparent text-ink-muted hover:text-ink'
                 }`}
               >
                 {label}

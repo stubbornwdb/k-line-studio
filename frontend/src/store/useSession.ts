@@ -80,7 +80,7 @@ const DEFAULTS = {
   symbol: 'BTCUSDT',
   interval: '1h' as Interval,
   rangePreset: '1M',
-  theme: 'dark' as ThemeName,
+  theme: 'light' as ThemeName,
   timezone: 'utc' as Timezone,
   showVolume: true,
   logScale: false,

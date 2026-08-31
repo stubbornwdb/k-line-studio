@@ -5,25 +5,25 @@
 /* Palette is defined once as RGB triples so Tailwind can apply opacity to it,
    and the chart theme can read the same values. */
 :root {
-  --panel: 255 255 255;
-  --panel-soft: 244 246 250;
-  --edge: 222 226 234;
-  --ink: 24 28 35;
-  --ink-muted: 108 116 132;
-  --accent: 41 98 255;
-  --bull: 8 153 129;
-  --bear: 242 54 69;
+  --panel: 250 249 247;
+  --panel-soft: 242 241 238;
+  --edge: 220 219 214;
+  --ink: 28 30 33;
+  --ink-muted: 105 108 112;
+  --accent: 38 87 214;
+  --bull: 198 63 63;
+  --bear: 28 142 94;
 }
 
 .dark {
-  --panel: 19 23 34;
-  --panel-soft: 26 31 44;
-  --edge: 43 49 65;
-  --ink: 209 212 220;
-  --ink-muted: 132 142 156;
-  --accent: 41 98 255;
-  --bull: 38 166 154;
-  --bear: 239 83 80;
+  --panel: 24 26 29;
+  --panel-soft: 31 34 38;
+  --edge: 54 57 61;
+  --ink: 231 230 226;
+  --ink-muted: 150 151 148;
+  --accent: 111 157 255;
+  --bull: 235 103 103;
+  --bear: 74 190 132;
 }
 
 @layer base {
@@ -36,6 +36,13 @@
   body {
     @apply bg-panel text-ink font-sans antialiased;
     -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 
   /* Consistent, unobtrusive scrollbars in both themes. */
@@ -61,11 +68,11 @@
 
 @layer components {
   .field {
-    @apply h-8 rounded border border-edge bg-panel-soft px-2 text-xs text-ink
-      outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40;
+    @apply h-9 rounded-sm border border-edge bg-panel-soft px-2.5 text-xs text-ink
+      outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/25;
   }
 
   .chip {
-    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-2xs font-medium;
   }
 }

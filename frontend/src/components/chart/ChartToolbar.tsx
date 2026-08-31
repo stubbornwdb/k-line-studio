@@ -79,10 +79,10 @@ export function ChartToolbar({
   const arm = (tool: ChartTool) => setTool(activeTool === tool ? 'none' : tool)
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <span className="mr-1 hidden text-2xs font-semibold uppercase tracking-[0.18em] text-ink-muted xl:inline">
-          图表
+    <div className="flex w-full min-w-0 items-center justify-between gap-3 overflow-x-auto">
+      <div className="flex min-w-max items-center gap-1">
+        <span className="mr-1 text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+          指标
         </span>
         {DEFAULT_OVERLAYS.map((overlay) => (
           <Button
@@ -99,6 +99,9 @@ export function ChartToolbar({
 
         <Divider />
 
+        <span className="mx-1 text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+          显示
+        </span>
         <Button size="sm" active={showVolume} onClick={toggleVolume} title="成交量">
           VOL
         </Button>
@@ -108,6 +111,9 @@ export function ChartToolbar({
 
         <Divider />
 
+        <span className="mx-1 text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+          绘图
+        </span>
         {TOOLS.map(({ tool, label, title, icon: Icon }) => (
           <Button
             key={tool}
@@ -147,7 +153,10 @@ export function ChartToolbar({
         </Button>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="ml-auto flex min-w-max shrink-0 items-center gap-1">
+        <span className="mx-1 text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+          系统
+        </span>
         <RefreshControl
           intervalMs={refreshIntervalMs}
           lastUpdatedAt={lastUpdatedAt}

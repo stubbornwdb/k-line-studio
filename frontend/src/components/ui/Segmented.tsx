@@ -16,7 +16,7 @@ interface Props<T extends string> {
 /** Compact button strip -- the timeframe / range selector pattern. */
 export function Segmented<T extends string>({ options, value, onChange, className }: Props<T>) {
   return (
-    <div className={clsx('flex items-center gap-0.5 rounded bg-panel-soft p-0.5', className)}>
+    <div className={clsx('flex items-center gap-0.5 rounded-sm bg-panel-soft p-0.5', className)}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -24,9 +24,9 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
           title={option.title}
           onClick={() => onChange(option.value)}
           className={clsx(
-            'h-7 min-w-[2rem] rounded px-2 text-2xs font-medium transition-colors',
+            'h-7 min-w-[2rem] rounded-sm px-2 text-2xs font-medium transition-colors',
             option.value === value
-              ? 'bg-accent text-white'
+              ? 'bg-panel text-ink shadow-sm ring-1 ring-edge'
               : 'text-ink-muted hover:bg-panel hover:text-ink',
           )}
         >

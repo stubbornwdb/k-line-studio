@@ -18,7 +18,7 @@ async def get_market_overview(
     session: DbSession,
     exchange: str,
     symbol: Annotated[str | None, Query()] = None,
-    new_listing_days: Annotated[int, Query(ge=1, le=730)] = 365,
+    new_listing_days: Annotated[int, Query(ge=1, le=1095)] = 365,
 ) -> MarketOverviewOut:
     return await market_service.overview(
         session, exchange, symbol, new_listing_days=new_listing_days
@@ -31,7 +31,7 @@ async def get_new_listings(
     q: Annotated[str, Query(alias="q")] = "",
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    days: Annotated[int, Query(ge=1, le=730)] = 365,
+    days: Annotated[int, Query(ge=1, le=1095)] = 365,
     sort: Annotated[str, Query()] = "time",
 ) -> MarketListingPageOut:
     return await market_service.new_listings_page(
