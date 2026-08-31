@@ -20,6 +20,33 @@ class CandleJobIn(BaseModel):
     refresh: bool = False
 
 
+class BatchJobIn(BaseModel):
+    exchange: str
+    symbols: list[str]
+    intervals: list[str]
+    range_days: int = 365
+
+
+class BatchItemStatus(BaseModel):
+    symbol: str
+    interval: str
+    status: JobStatus
+    fetched: int = 0
+    error: str | None = None
+
+
+class BatchJobOut(BaseModel):
+    id: str
+    status: JobStatus
+    exchange: str
+    total: int
+    completed: int
+    failed: int
+    items: list[BatchItemStatus]
+    created_at: int
+    updated_at: int
+
+
 class CandleJobOut(BaseModel):
     id: str
     status: JobStatus

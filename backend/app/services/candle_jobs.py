@@ -11,7 +11,14 @@ from app.core.intervals import Interval
 from app.core.timeutil import now_ms
 from app.db.session import get_session_factory
 from app.schemas.candle import CandleSeriesOut
-from app.schemas.candle_job import CandleJobIn, CandleJobOut, JobStatus
+from app.schemas.candle_job import (
+    BatchItemStatus,
+    BatchJobIn,
+    BatchJobOut,
+    CandleJobIn,
+    CandleJobOut,
+    JobStatus,
+)
 from app.services.candles import CandleProgress, CandleService
 
 logger = logging.getLogger(__name__)
@@ -155,3 +162,138 @@ def _interval_ms(value: str) -> int:
 
 
 manager = CandleJobManager()
+
+_BATCH_CONCURRENCY = 3
+
+
+@dataclass(slots=True)
+class _BatchItem:
+    symbol: str
+    interval: str
+    status: JobStatus = "queued"
+    fetched: int = 0
+    error: str | None = None
+
+
+@dataclass(slots=True)
+class _BatchJob:
+    id: str
+    exchange: str
+    items: list[_BatchItem]
+    status: JobStatus = "queued"
+    created_at: int = 0
+    updated_at: int = 0
+    task: asyncio.Task[None] | None = None
+
+
+class BatchJobManager:
+    def __init__(self) -> None:
+        self._jobs: dict[str, _BatchJob] = {}
+
+    def start(self, payload: BatchJobIn) -> BatchJobOut:
+        self._prune()
+        job_id = uuid4().hex
+        stamp = now_ms()
+        items = [
+            _BatchItem(symbol=sym, interval=iv)
+            for sym in payload.symbols
+            for iv in payload.intervals
+        ]
+        job = _BatchJob(
+            id=job_id,
+            exchange=payload.exchange,
+            items=items,
+            created_at=stamp,
+            updated_at=stamp,
+        )
+        self._jobs[job_id] = job
+        job.task = asyncio.create_task(
+            self._run(job, payload), name=f"batch-job-{job_id}"
+        )
+        return self._snapshot(job)
+
+    def get(self, job_id: str) -> BatchJobOut | None:
+        job = self._jobs.get(job_id)
+        return self._snapshot(job) if job else None
+
+    async def _run(self, job: _BatchJob, payload: BatchJobIn) -> None:
+        job.status = "running"
+        job.updated_at = now_ms()
+        now = now_ms()
+        end = now
+        start = now - payload.range_days * 24 * 60 * 60 * 1000
+        sem = asyncio.Semaphore(_BATCH_CONCURRENCY)
+
+        async def fetch_one(item: _BatchItem) -> None:
+            async with sem:
+                item.status = "running"
+                job.updated_at = now_ms()
+                factory = get_session_factory()
+                async with factory() as session:
+                    try:
+                        service = CandleService(session)
+                        result = await service.get_series(
+                            payload.exchange,
+                            item.symbol,
+                            Interval(item.interval),
+                            start,
+                            end,
+                        )
+                        await session.commit()
+                        item.status = "completed"
+                        item.fetched = result.count
+                    except Exception as exc:
+                        await session.rollback()
+                        item.status = "failed"
+                        item.error = str(exc)
+                        logger.warning(
+                            "batch item %s/%s failed: %s",
+                            item.symbol,
+                            item.interval,
+                            exc,
+                        )
+                job.updated_at = now_ms()
+
+        await asyncio.gather(*(fetch_one(item) for item in job.items))
+        failed = sum(1 for i in job.items if i.status == "failed")
+        job.status = "failed" if failed == len(job.items) else "completed"
+        job.updated_at = now_ms()
+
+    @staticmethod
+    def _snapshot(job: _BatchJob | None) -> BatchJobOut | None:
+        if job is None:
+            return None
+        completed = sum(1 for i in job.items if i.status == "completed")
+        failed = sum(1 for i in job.items if i.status == "failed")
+        return BatchJobOut(
+            id=job.id,
+            status=job.status,
+            exchange=job.exchange,
+            total=len(job.items),
+            completed=completed,
+            failed=failed,
+            items=[
+                BatchItemStatus(
+                    symbol=i.symbol,
+                    interval=i.interval,
+                    status=i.status,
+                    fetched=i.fetched,
+                    error=i.error,
+                )
+                for i in job.items
+            ],
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+        )
+
+    def _prune(self) -> None:
+        cutoff = now_ms() - 60 * 60 * 1000
+        stale = [
+            jid for jid, j in self._jobs.items()
+            if j.updated_at < cutoff and j.status in {"completed", "failed"}
+        ]
+        for jid in stale:
+            self._jobs.pop(jid, None)
+
+
+batch_manager = BatchJobManager()

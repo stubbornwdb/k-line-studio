@@ -67,6 +67,14 @@ export function formatDuration(ms: number): string {
   return `${(ms / DAY).toFixed(1)}d`
 }
 
+export function formatListingAge(listedAtMs: number): string {
+  const days = Math.floor((Date.now() - listedAtMs) / DAY)
+  if (days <= 0) return '今天'
+  if (days < 30) return `${days}天`
+  if (days < 365) return `${Math.floor(days / 30)}个月`
+  return `${(days / 365).toFixed(1)}年`
+}
+
 export function timezoneLabel(tz: Timezone): string {
   if (tz === 'utc') return 'UTC'
   const offsetMinutes = -new Date().getTimezoneOffset()

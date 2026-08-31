@@ -188,6 +188,33 @@ export interface PriceAlertInput {
   threshold: number
 }
 
+export interface BatchJobInput {
+  exchange: string
+  symbols: string[]
+  intervals: string[]
+  range_days: number
+}
+
+export interface BatchItemStatus {
+  symbol: string
+  interval: string
+  status: CandleJobStatus
+  fetched: number
+  error: string | null
+}
+
+export interface BatchJob {
+  id: string
+  status: CandleJobStatus
+  exchange: string
+  total: number
+  completed: number
+  failed: number
+  items: BatchItemStatus[]
+  created_at: number
+  updated_at: number
+}
+
 export type DrawingKind = 'trendline' | 'horizontal'
 export type DrawingStyle = 'solid' | 'dashed'
 

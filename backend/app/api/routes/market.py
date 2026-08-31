@@ -18,5 +18,8 @@ async def get_market_overview(
     session: DbSession,
     exchange: str,
     symbol: Annotated[str | None, Query()] = None,
+    new_listing_days: Annotated[int, Query(ge=1, le=730)] = 365,
 ) -> MarketOverviewOut:
-    return await market_service.overview(session, exchange, symbol)
+    return await market_service.overview(
+        session, exchange, symbol, new_listing_days=new_listing_days
+    )
