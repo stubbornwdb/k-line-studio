@@ -14,11 +14,12 @@ import {
   VolumeX,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   useAlertMutations,
   useAlerts,
+  useNewListings,
   useWatchlist,
   useWatchlistMutations,
 } from '@/api/queries'
@@ -90,32 +91,16 @@ export function MonitorPanel({
   const [ageDays, setAgeDays] = useState(90)
   const [sortBy, setSortBy] = useState<NewListingSort>('time')
   const [batchOpen, setBatchOpen] = useState(false)
+  const [listingQuery, setListingQuery] = useState('')
   const { data: watchlist } = useWatchlist()
   const watchlistMutations = useWatchlistMutations()
   const { data: alerts } = useAlerts(exchange)
   const alertMutations = useAlertMutations(exchange)
-
-  const rawRows = overview?.[view] ?? []
-
-  const rows = useMemo(() => {
-    if (view !== 'new_listings') return rawRows
-
-    const cutoff = Date.now() - ageDays * 24 * 60 * 60 * 1000
-    const filtered = rawRows.filter(
-      (t) => t.listed_at !== null && t.listed_at >= cutoff,
-    )
-
-    if (sortBy === 'time') {
-      return filtered.sort((a, b) => (b.listed_at ?? 0) - (a.listed_at ?? 0))
-    }
-    if (sortBy === 'change') {
-      return filtered.sort((a, b) => b.change_24h_pct - a.change_24h_pct)
-    }
-    return filtered.sort(
-      (a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0),
-    )
-  }, [view, rawRows, ageDays, sortBy])
-
+  const deferredListingQuery = useDeferredValue(listingQuery.trim())
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const rows = overview?.[view] ?? []
+  const newListings = useNewListings(exchange, deferredListingQuery, ageDays, sortBy)
   const favoriteIds = useMemo(
     () =>
       new Map(
@@ -125,6 +110,41 @@ export function MonitorPanel({
       ),
     [exchange, watchlist],
   )
+
+  const toggleFavorite = (symbol: string, id?: number) => {
+    if (id) watchlistMutations.remove.mutate(id)
+    else watchlistMutations.add.mutate({ exchange, symbol })
+  }
+
+  useEffect(() => {
+    if (view !== 'new_listings') return
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [deferredListingQuery, view, ageDays, sortBy])
+
+  useEffect(() => {
+    if (view !== 'new_listings') return
+    const root = scrollRef.current
+    const target = loadMoreRef.current
+    if (!root || !target) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        if (!newListings.hasNextPage || newListings.isFetchingNextPage) return
+        void newListings.fetchNextPage()
+      },
+      { root, rootMargin: '240px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [newListings, view])
+
+  const listingPages = newListings.data?.pages ?? []
+  const listingRows = listingPages.flatMap((page) => page.items)
+  const listingTotal = listingPages[0]?.total ?? 0
+  const listingHasMore = Boolean(newListings.hasNextPage)
+  const listingLoading = newListings.isLoading && listingRows.length === 0
+  const listingError = newListings.isError ? ((newListings.error as Error)?.message ?? '次新币加载失败') : null
+  const listingEmpty = !listingLoading && !listingError && listingRows.length === 0
 
   const createAlert = () => {
     const value = Number(threshold)
@@ -232,14 +252,20 @@ export function MonitorPanel({
                 ))}
               </div>
             </div>
+            <TextInput
+              value={listingQuery}
+              onChange={(event) => setListingQuery(event.target.value)}
+              placeholder="搜索交易对，如 BTR、BTCUSDT"
+            />
             <div className="flex items-center justify-between">
               <span className="text-2xs text-ink-muted">
-                共 {rows.length} 个次新合约
+                已加载 {listingRows.length}
+                {listingTotal > 0 && ` / ${listingTotal}`} 个次新合约
               </span>
               <Button
                 size="sm"
                 title="批量拉取 K 线"
-                disabled={rows.length === 0}
+                disabled={listingRows.length === 0}
                 onClick={() => setBatchOpen(true)}
               >
                 <Download className="h-3 w-3" />
@@ -253,19 +279,19 @@ export function MonitorPanel({
           <BatchFetchDialog
             open={batchOpen}
             exchange={exchange}
-            tickers={rows}
+            tickers={listingRows}
             onClose={() => setBatchOpen(false)}
           />
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && <EmptyState text="正在读取交易所行情…" />}
         {isError && <EmptyState text={(error as Error)?.message ?? '行情加载失败'} error />}
-        {!isLoading && !isError && rows.length === 0 && (
+        {view !== 'new_listings' && !isLoading && !isError && rows.length === 0 && (
           <EmptyState text={view === 'favorites' ? '还没有收藏交易对' : '暂无符合条件的合约'} />
         )}
-        {!isLoading && !isError && rows.length > 0 && (
+        {view !== 'new_listings' && !isLoading && !isError && rows.length > 0 && (
           <div className="divide-y divide-edge">
             {rows.map((ticker) => (
               <TickerRow
@@ -273,14 +299,43 @@ export function MonitorPanel({
                 ticker={ticker}
                 favoriteId={favoriteIds.get(ticker.symbol)}
                 active={ticker.symbol === currentSymbol}
-                showAge={view === 'new_listings'}
+                showAge={false}
                 onOpen={onOpen}
-                onToggleFavorite={(id) => {
-                  if (id) watchlistMutations.remove.mutate(id)
-                  else watchlistMutations.add.mutate({ exchange, symbol: ticker.symbol })
-                }}
+                onToggleFavorite={() => toggleFavorite(ticker.symbol, favoriteIds.get(ticker.symbol))}
               />
             ))}
+          </div>
+        )}
+
+        {view === 'new_listings' && listingLoading && <EmptyState text="正在读取次新币…" />}
+        {view === 'new_listings' && listingError && <EmptyState text={listingError} error />}
+        {view === 'new_listings' && listingEmpty && (
+          <EmptyState
+            text={deferredListingQuery ? '没有匹配的次新币' : '没有符合筛选条件的次新币'}
+          />
+        )}
+        {view === 'new_listings' && !listingLoading && !listingError && listingRows.length > 0 && (
+          <div className="divide-y divide-edge">
+            {listingRows.map((ticker) => (
+              <TickerRow
+                key={ticker.symbol}
+                ticker={ticker}
+                favoriteId={favoriteIds.get(ticker.symbol)}
+                active={ticker.symbol === currentSymbol}
+                showAge
+                onOpen={onOpen}
+                onToggleFavorite={() =>
+                  toggleFavorite(ticker.symbol, favoriteIds.get(ticker.symbol))
+                }
+              />
+            ))}
+            <div ref={loadMoreRef} className="px-3 py-2 text-center text-2xs text-ink-muted">
+              {newListings.isFetchingNextPage
+                ? '继续加载中…'
+                : listingHasMore
+                  ? '下滑继续加载更多'
+                  : '已经到底了'}
+            </div>
           </div>
         )}
 

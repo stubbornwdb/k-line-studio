@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 
@@ -13,12 +14,13 @@ from app.core.timeutil import now_ms
 from app.db.models import PriceAlert, Watchlist
 from app.providers.base import SymbolInfo, TickerInfo
 from app.providers.registry import get_provider
-from app.schemas.market import MarketOverviewOut, TickerOut
+from app.schemas.market import MarketListingPageOut, MarketOverviewOut, TickerOut
 from app.services.symbols import catalog
 
 _CACHE_TTL_SECONDS = 10.0
 _LIST_LIMIT = 30
 _NEW_LISTING_LIMIT = 200
+_NEW_LISTINGS_PAGE_LIMIT = 100
 
 
 @dataclass(slots=True)
@@ -127,6 +129,41 @@ class MarketService:
             triggered_alert_ids=triggered,
         )
 
+    async def new_listings_page(
+        self,
+        exchange: str,
+        *,
+        query: str = "",
+        cursor: str | None = None,
+        limit: int = 50,
+        days: int = 365,
+        sort: str = "time",
+    ) -> MarketListingPageOut:
+        snapshot = await self.snapshot(exchange)
+        rows = self._new_listing_rows(snapshot, days=days, sort=sort)
+        needle = _normalize(query)
+        if needle:
+            rows = [row for row in rows if _matches(row, needle)]
+
+        total = len(rows)
+        start_index = _cursor_index(rows, cursor)
+        page_limit = min(max(limit, 1), _NEW_LISTINGS_PAGE_LIMIT)
+        page = rows[start_index : start_index + page_limit]
+        next_cursor = (
+            _encode_cursor(page[-1])
+            if len(page) == page_limit and start_index + page_limit < total
+            else None
+        )
+        return MarketListingPageOut(
+            exchange=exchange,
+            query=query,
+            total=total,
+            limit=page_limit,
+            next_cursor=next_cursor,
+            has_more=next_cursor is not None,
+            items=page,
+        )
+
     @staticmethod
     def _ticker_out(snapshot: _Snapshot, ticker: TickerInfo) -> TickerOut:
         symbol = snapshot.symbols.get(ticker.symbol)
@@ -140,6 +177,62 @@ class MarketService:
             low_24h=ticker.low_24h,
             listed_at=symbol.listed_at if symbol else None,
         )
+
+    @staticmethod
+    def _new_listing_rows(
+        snapshot: _Snapshot,
+        *,
+        days: int = 365,
+        sort: str = "time",
+    ) -> list[TickerOut]:
+        cutoff = now_ms() - days * 24 * 60 * 60 * 1000
+        rows = [
+            MarketService._ticker_out(snapshot, ticker)
+            for ticker in snapshot.tickers.values()
+            if ticker.symbol in snapshot.symbols
+            and snapshot.symbols[ticker.symbol].listed_at is not None
+            and snapshot.symbols[ticker.symbol].listed_at >= cutoff
+        ]
+        if sort == "change":
+            return sorted(rows, key=lambda row: (-row.change_24h_pct, row.symbol))
+        if sort == "volume":
+            return sorted(rows, key=lambda row: (-(row.volume_24h or 0), row.symbol))
+        return sorted(rows, key=lambda row: (-(row.listed_at or 0), row.symbol))
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _matches(row: TickerOut, needle: str) -> bool:
+    haystacks = [row.symbol, row.display, row.symbol.replace("/", ""), row.display.replace("/", "")]
+    return any(needle in _normalize(value) for value in haystacks)
+
+
+def _encode_cursor(row: TickerOut) -> str:
+    return f"{row.listed_at or 0}:{row.symbol}"
+
+
+def _decode_cursor(cursor: str) -> tuple[int, str] | None:
+    try:
+        listed_at_raw, symbol = cursor.split(":", 1)
+        listed_at = int(listed_at_raw)
+    except (TypeError, ValueError):
+        return None
+    return listed_at, symbol
+
+
+def _cursor_index(rows: list[TickerOut], cursor: str | None) -> int:
+    if not cursor:
+        return 0
+    decoded = _decode_cursor(cursor)
+    if decoded is None:
+        return 0
+    _, symbol = decoded
+    for index, row in enumerate(rows):
+        if row.symbol == symbol:
+            return index + 1
+    return 0
 
 
 market_service = MarketService()

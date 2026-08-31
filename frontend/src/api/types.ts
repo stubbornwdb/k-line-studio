@@ -157,6 +157,16 @@ export interface MarketOverview {
   triggered_alert_ids: number[]
 }
 
+export interface MarketListingPage {
+  exchange: string
+  query: string
+  total: number
+  limit: number
+  next_cursor: string | null
+  has_more: boolean
+  items: Ticker[]
+}
+
 export interface WatchlistItem {
   id: number
   exchange: string

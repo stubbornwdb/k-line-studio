@@ -76,3 +76,13 @@ class MarketOverviewOut(BaseModel):
     gainers: list[TickerOut]
     losers: list[TickerOut]
     triggered_alert_ids: list[int]
+
+
+class MarketListingPageOut(BaseModel):
+    exchange: str
+    query: str = ""
+    total: int
+    limit: int
+    next_cursor: str | None = None
+    has_more: bool
+    items: list[TickerOut]

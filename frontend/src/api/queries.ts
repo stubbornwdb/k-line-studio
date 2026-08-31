@@ -1,7 +1,7 @@
 /** React Query bindings. One hook per resource, keys centralised below. */
 
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from './client'
 import type {
@@ -19,6 +19,7 @@ import type {
   StoredSeries,
   SymbolList,
   MarketOverview,
+  MarketListingPage,
   PriceAlert,
   PriceAlertInput,
   WatchlistItem,
@@ -39,6 +40,7 @@ export const queryKeys = {
   storage: ['storage'] as const,
   watchlist: ['watchlist'] as const,
   market: (exchange: string, symbol?: string) => ['market', exchange, symbol ?? ''] as const,
+  newListings: (exchange: string, query: string, days: number, sort: string) => ['market', 'new_listings', exchange, query, days, sort] as const,
   alerts: (exchange: string, symbol?: string) => ['alerts', exchange, symbol ?? 'all'] as const,
 }
 
@@ -225,6 +227,31 @@ export function useMarketOverview(
     enabled: Boolean(exchange && symbol),
     refetchInterval,
     staleTime: 5_000,
+    retry: 1,
+  })
+}
+
+export function useNewListings(
+  exchange: string,
+  query: string,
+  days = 365,
+  sort = 'time',
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.newListings(exchange, query, days, sort),
+    queryFn: ({ pageParam }) =>
+      api.get<MarketListingPage>('/market/new-listings', {
+        exchange,
+        q: query,
+        cursor: pageParam ?? undefined,
+        limit: 50,
+        days,
+        sort,
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+    enabled: Boolean(exchange),
+    staleTime: 30 * 1000,
     retry: 1,
   })
 }
