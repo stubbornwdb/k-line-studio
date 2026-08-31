@@ -338,6 +338,7 @@ export default function App() {
             )}
 
             <CandleChart
+              key={`${session.exchange}|${session.symbol}|${session.interval}|${range.start}|${range.end}`}
               candles={candles}
               notes={notes}
               drawings={drawings}
