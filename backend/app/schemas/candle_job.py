@@ -20,11 +20,22 @@ class CandleJobIn(BaseModel):
     refresh: bool = False
 
 
+class BatchTaskIn(BaseModel):
+    symbol: str
+    interval: str
+
+
 class BatchJobIn(BaseModel):
     exchange: str
-    symbols: list[str]
-    intervals: list[str]
+    # Legacy callers may still provide an explicit symbol list. The monitor
+    # sends filters instead so the backend can resolve the complete catalog.
+    symbols: list[str] = Field(default_factory=list)
+    intervals: list[str] = Field(default_factory=list)
     range_days: int = 365
+    listing_query: str = ""
+    listing_days: int | None = Field(default=None, ge=1, le=1095)
+    listing_sort: Literal["time", "change", "volume"] = "time"
+    items: list[BatchTaskIn] | None = None
 
 
 class BatchItemStatus(BaseModel):
@@ -32,6 +43,7 @@ class BatchItemStatus(BaseModel):
     interval: str
     status: JobStatus
     fetched: int = 0
+    attempts: int = 0
     error: str | None = None
 
 

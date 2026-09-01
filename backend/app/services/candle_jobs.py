@@ -15,6 +15,7 @@ from app.schemas.candle_job import (
     BatchItemStatus,
     BatchJobIn,
     BatchJobOut,
+    BatchTaskIn,
     CandleJobIn,
     CandleJobOut,
     JobStatus,
@@ -164,6 +165,8 @@ def _interval_ms(value: str) -> int:
 manager = CandleJobManager()
 
 _BATCH_CONCURRENCY = 3
+_BATCH_ITEM_RETRIES = 3
+_BATCH_RETRY_BASE_DELAY = 0.5
 
 
 @dataclass(slots=True)
@@ -172,7 +175,9 @@ class _BatchItem:
     interval: str
     status: JobStatus = "queued"
     fetched: int = 0
+    attempts: int = 0
     error: str | None = None
+    errors: list[str] | None = None
 
 
 @dataclass(slots=True)
@@ -194,10 +199,18 @@ class BatchJobManager:
         self._prune()
         job_id = uuid4().hex
         stamp = now_ms()
+        requested_items = (
+            payload.items
+            if payload.items is not None
+            else [
+                BatchTaskIn(symbol=sym, interval=iv)
+                for sym in payload.symbols
+                for iv in payload.intervals
+            ]
+        )
         items = [
-            _BatchItem(symbol=sym, interval=iv)
-            for sym in payload.symbols
-            for iv in payload.intervals
+            _BatchItem(symbol=item.symbol, interval=item.interval, errors=[])
+            for item in requested_items
         ]
         job = _BatchJob(
             id=job_id,
@@ -224,33 +237,63 @@ class BatchJobManager:
         start = now - payload.range_days * 24 * 60 * 60 * 1000
         sem = asyncio.Semaphore(_BATCH_CONCURRENCY)
 
+        async def run_attempt(item: _BatchItem) -> CandleSeriesOut:
+            factory = get_session_factory()
+            async with factory() as session:
+                try:
+                    service = CandleService(session)
+                    result = await service.get_series(
+                        payload.exchange,
+                        item.symbol,
+                        Interval(item.interval),
+                        start,
+                        end,
+                    )
+                    await session.commit()
+                    return result
+                except Exception:
+                    await session.rollback()
+                    raise
+
         async def fetch_one(item: _BatchItem) -> None:
             async with sem:
                 item.status = "running"
                 job.updated_at = now_ms()
-                factory = get_session_factory()
-                async with factory() as session:
+                for attempt in range(1, _BATCH_ITEM_RETRIES + 1):
+                    item.attempts = attempt
+                    job.updated_at = now_ms()
                     try:
-                        service = CandleService(session)
-                        result = await service.get_series(
-                            payload.exchange,
-                            item.symbol,
-                            Interval(item.interval),
-                            start,
-                            end,
-                        )
-                        await session.commit()
+                        result = await run_attempt(item)
                         item.status = "completed"
-                        item.fetched = result.count
+                        # count includes cached bars; meta.fetched is this
+                        # request's actual exchange download count.
+                        item.fetched = result.meta.fetched
+                        item.error = None
+                        break
                     except Exception as exc:
-                        await session.rollback()
-                        item.status = "failed"
-                        item.error = str(exc)
+                        reason = _error_text(exc)
+                        if item.errors is not None:
+                            item.errors.append(reason)
+                        item.error = f"第 {attempt}/{_BATCH_ITEM_RETRIES} 次：{reason}"
                         logger.warning(
-                            "batch item %s/%s failed: %s",
+                            "batch item %s/%s attempt %s/%s failed: %s",
                             item.symbol,
                             item.interval,
+                            attempt,
+                            _BATCH_ITEM_RETRIES,
                             exc,
+                        )
+                        job.updated_at = now_ms()
+                        if attempt < _BATCH_ITEM_RETRIES:
+                            await asyncio.sleep(
+                                _BATCH_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                            )
+                else:
+                    item.status = "failed"
+                    if item.errors:
+                        item.error = (
+                            f"已重试 {_BATCH_ITEM_RETRIES} 次："
+                            + "；".join(item.errors)
                         )
                 job.updated_at = now_ms()
 
@@ -278,6 +321,7 @@ class BatchJobManager:
                     interval=i.interval,
                     status=i.status,
                     fetched=i.fetched,
+                    attempts=i.attempts,
                     error=i.error,
                 )
                 for i in job.items
@@ -294,6 +338,15 @@ class BatchJobManager:
         ]
         for jid in stale:
             self._jobs.pop(jid, None)
+
+
+def _error_text(exc: Exception) -> str:
+    """Include structured upstream details in the status shown to the user."""
+    message = str(getattr(exc, "message", "") or exc)
+    detail = getattr(exc, "detail", None)
+    if detail is not None and str(detail) not in {"", message}:
+        return f"{message} ({detail})"
+    return message
 
 
 batch_manager = BatchJobManager()

@@ -200,9 +200,13 @@ export interface PriceAlertInput {
 
 export interface BatchJobInput {
   exchange: string
-  symbols: string[]
-  intervals: string[]
+  symbols?: string[]
+  intervals?: string[]
   range_days: number
+  listing_query?: string
+  listing_days?: number
+  listing_sort?: 'time' | 'change' | 'volume'
+  items?: { symbol: string; interval: string }[]
 }
 
 export interface BatchItemStatus {
@@ -210,6 +214,7 @@ export interface BatchItemStatus {
   interval: string
   status: CandleJobStatus
   fetched: number
+  attempts: number
   error: string | null
 }
 

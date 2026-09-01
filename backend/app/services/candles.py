@@ -44,6 +44,29 @@ ProgressCallback = Callable[[CandleProgress], Awaitable[None]]
 
 
 @dataclass(slots=True, frozen=True)
+class DownloadResult:
+    candles: list[ProviderCandle]
+    covered_ranges: list[Range]
+
+
+def _contiguous_ranges(
+    candles: list[ProviderCandle], start: int, end: int
+) -> list[Range]:
+    """Keep returned bounds while treating exchange-side empty bars as covered.
+
+    Providers may legitimately omit intervals with no trades, so internal
+    timestamp holes are part of the returned span. A response that stops early
+    still leaves its unreturned head or tail uncovered for a later request.
+    """
+    if not candles:
+        return []
+    times = sorted({candle.open_time for candle in candles if start <= candle.open_time <= end})
+    if not times:
+        return []
+    return [(times[0], times[-1])]
+
+
+@dataclass(slots=True, frozen=True)
 class SeriesKey:
     exchange: str
     symbol: str
@@ -95,6 +118,7 @@ class CandleService:
 
         fetched = 0
         gaps: list[Range] = []
+        downloaded_ranges: list[Range] = []
         if closed_end >= start:
             gaps = await self._pending_gaps(key, (start, closed_end), refresh=refresh)
             missing_expected = sum((gap[1] - gap[0]) // interval.ms + 1 for gap in gaps)
@@ -132,14 +156,18 @@ class CandleService:
                         )
                     )
 
-                fetched += await self._download(
+                download = await self._download(
                     provider,
                     key,
                     gap,
                     progress=page_progress if on_progress is not None else None,
                 )
+                fetched += len(download.candles)
+                downloaded_ranges.extend(download.covered_ranges)
                 completed_expected += gap_expected
-            await self._coverage.record(key.exchange, key.symbol, key.interval, gaps)
+            await self._coverage.record(
+                key.exchange, key.symbol, key.interval, downloaded_ranges
+            )
 
         # The forming bar is never "covered"; re-fetch it on every request.
         live_bar = False
@@ -159,7 +187,8 @@ class CandleService:
                     )
                 )
             live_start = max(start, last_closed + interval.ms)
-            fetched += await self._download(provider, key, (live_start, end))
+            live_download = await self._download(provider, key, (live_start, end))
+            fetched += len(live_download.candles)
             live_bar = True
 
         if on_progress is not None:
@@ -271,10 +300,10 @@ class CandleService:
         window: Range,
         *,
         progress: ProgressCallback | None = None,
-    ) -> int:
+    ) -> DownloadResult:
         start, end = window
         if end < start:
-            return 0
+            return DownloadResult(candles=[], covered_ranges=[])
         if progress is None:
             candles = await provider.fetch_candles(key.symbol, key.interval, start, end)
         else:
@@ -291,7 +320,10 @@ class CandleService:
             end,
         )
         await self._upsert(key, candles)
-        return len(candles)
+        return DownloadResult(
+            candles=candles,
+            covered_ranges=_contiguous_ranges(candles, start, end),
+        )
 
     async def _upsert(self, key: SeriesKey, candles: list[ProviderCandle]) -> None:
         if not candles:

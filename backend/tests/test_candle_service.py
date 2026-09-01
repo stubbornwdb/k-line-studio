@@ -13,7 +13,7 @@ from app.db.models import Base
 from app.providers.base import ExchangeProvider, Pagination, ProviderCandle, SymbolInfo
 from app.providers.http import HttpClient
 from app.services import candles as candles_module
-from app.services.candles import CandleService
+from app.services.candles import CandleService, _contiguous_ranges
 
 INTERVAL = Interval.H1
 # A window that ended long ago, so the "live bar" path never triggers.
@@ -140,3 +140,28 @@ async def test_window_is_capped_and_flagged(session, provider, monkeypatch):
     assert result.meta.truncated is True
     assert result.count == 20
     assert result.start == BASE_TIME - 19 * INTERVAL.ms
+
+
+def test_partial_provider_response_does_not_cover_unreturned_tail():
+    times = [
+        BASE_TIME - 5 * INTERVAL.ms,
+        BASE_TIME - 4 * INTERVAL.ms,
+        BASE_TIME - 1 * INTERVAL.ms,
+    ]
+    candles = [
+        ProviderCandle(
+            open_time=t,
+            open=100,
+            high=101,
+            low=99,
+            close=100.5,
+            volume=1,
+        )
+        for t in times
+    ]
+
+    assert _contiguous_ranges(
+        candles,
+        BASE_TIME - 5 * INTERVAL.ms,
+        BASE_TIME,
+    ) == [(BASE_TIME - 5 * INTERVAL.ms, BASE_TIME - INTERVAL.ms)]

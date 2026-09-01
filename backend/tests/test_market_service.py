@@ -118,3 +118,20 @@ async def test_new_listings_page_filters_days_and_sorts_by_change(
 
     page = await service.new_listings_page("binance", sort="change")
     assert [item.symbol for item in page.items] == ["BTRUSDT", "CCCUSDT", "AAAUSDT"]
+
+
+@pytest.mark.asyncio
+async def test_all_new_listing_symbols_returns_full_filtered_set(
+    monkeypatch: pytest.MonkeyPatch, snapshot
+):
+    service = MarketService()
+
+    async def fake_snapshot(_exchange: str):
+        return snapshot
+
+    monkeypatch.setattr(service, "snapshot", fake_snapshot)
+    monkeypatch.setattr(market_module, "now_ms", lambda: 2_000_000_000_000)
+
+    symbols = await service.all_new_listing_symbols("binance", query="btr")
+
+    assert symbols == ["BTRUSDT"]

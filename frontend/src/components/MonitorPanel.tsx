@@ -299,6 +299,10 @@ export function MonitorPanel({
             open={batchOpen}
             exchange={exchange}
             tickers={listingRows}
+            listingTotal={listingTotal}
+            listingQuery={deferredListingQuery}
+            listingDays={ageDays}
+            listingSort={sortBy}
             onClose={() => setBatchOpen(false)}
           />
         )}

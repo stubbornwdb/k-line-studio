@@ -199,6 +199,22 @@ class MarketService:
             return sorted(rows, key=lambda row: (-(row.volume_24h or 0), row.symbol))
         return sorted(rows, key=lambda row: (-(row.listed_at or 0), row.symbol))
 
+    async def all_new_listing_symbols(
+        self,
+        exchange: str,
+        *,
+        query: str = "",
+        days: int = 365,
+        sort: str = "time",
+    ) -> list[str]:
+        """Resolve the complete filtered listing set for server-side jobs."""
+        snapshot = await self.snapshot(exchange)
+        rows = self._new_listing_rows(snapshot, days=days, sort=sort)
+        needle = _normalize(query)
+        if needle:
+            rows = [row for row in rows if _matches(row, needle)]
+        return [row.symbol for row in rows]
+
 
 def _normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", text.lower())

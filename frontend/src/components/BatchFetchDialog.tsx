@@ -18,13 +18,27 @@ interface Props {
   open: boolean
   exchange: string
   tickers: Ticker[]
+  listingTotal: number
+  listingQuery: string
+  listingDays: number
+  listingSort: 'time' | 'change' | 'volume'
   onClose: () => void
 }
 
-export function BatchFetchDialog({ open, exchange, tickers, onClose }: Props) {
+export function BatchFetchDialog({
+  open,
+  exchange,
+  tickers,
+  listingTotal,
+  listingQuery,
+  listingDays,
+  listingSort,
+  onClose,
+}: Props) {
   const [selected, setSelected] = useState<BatchInterval[]>(['4h', '1d'])
   const [rangeDays, setRangeDays] = useState(365)
   const [job, setJob] = useState<BatchJob | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
   const running = job !== null && (job.status === 'queued' || job.status === 'running')
@@ -42,17 +56,41 @@ export function BatchFetchDialog({ open, exchange, tickers, onClose }: Props) {
 
   useEffect(() => cleanup, [cleanup])
 
-  const handleStart = async () => {
-    if (selected.length === 0 || tickers.length === 0) return
+  const start = async (input: Parameters<typeof startBatchFetch>[0]) => {
     cleanup()
-    const result = await startBatchFetch({
+    setStartError(null)
+    try {
+      const result = await startBatchFetch(input)
+      setJob(result)
+      poll(result.id)
+    } catch (error) {
+      setStartError((error as Error)?.message ?? '批量任务启动失败')
+    }
+  }
+
+  const handleStart = async () => {
+    if (selected.length === 0 || listingTotal === 0) return
+    await start({
       exchange,
-      symbols: tickers.map((t) => t.symbol),
       intervals: selected,
       range_days: rangeDays,
+      listing_query: listingQuery,
+      listing_days: listingDays,
+      listing_sort: listingSort,
     })
-    setJob(result)
-    poll(result.id)
+  }
+
+  const handleRetryFailed = async () => {
+    if (!job) return
+    const items = job.items
+      .filter((item) => item.status === 'failed')
+      .map(({ symbol, interval }) => ({ symbol, interval }))
+    if (items.length === 0) return
+    await start({
+      exchange,
+      items,
+      range_days: rangeDays,
+    })
   }
 
   const poll = (jobId: string) => {
@@ -76,7 +114,7 @@ export function BatchFetchDialog({ open, exchange, tickers, onClose }: Props) {
     }
   }
 
-  const totalTasks = tickers.length * selected.length
+  const totalTasks = (listingTotal || tickers.length) * selected.length
   const progress = job ? (job.completed + job.failed) / Math.max(job.total, 1) : 0
 
   return (
@@ -85,8 +123,8 @@ export function BatchFetchDialog({ open, exchange, tickers, onClose }: Props) {
         <>
           <div className="space-y-2">
             <p className="text-2xs text-ink-muted">
-              将为当前筛选的 <strong>{tickers.length}</strong> 个次新合约批量拉取 K 线数据，
-              拉取后可快速切换浏览。
+              将为当前筛选条件下的 <strong>{listingTotal || tickers.length}</strong> 个次新合约批量拉取 K 线数据，
+              任务由后端读取完整列表，当前页面无需先滚动加载完。
             </p>
 
             <div>
@@ -136,14 +174,15 @@ export function BatchFetchDialog({ open, exchange, tickers, onClose }: Props) {
             </div>
 
             <p className="text-2xs text-ink-muted">
-              共 {totalTasks} 个任务（{tickers.length} 币 × {selected.length} 级别）
+              预计 {totalTasks > 0 ? `${listingTotal || tickers.length} 币 × ${selected.length} 级别` : '暂无可拉取任务'}
             </p>
           </div>
+          {startError && <p className="text-2xs text-bear">{startError}</p>}
           <div className="flex justify-end pt-1">
             <Button
               variant="primary"
               size="sm"
-              disabled={selected.length === 0 || tickers.length === 0}
+              disabled={selected.length === 0 || listingTotal === 0}
               onClick={handleStart}
             >
               <Download className="h-3.5 w-3.5" />
@@ -178,34 +217,48 @@ export function BatchFetchDialog({ open, exchange, tickers, onClose }: Props) {
             {job.items.map((item) => (
               <div
                 key={`${item.symbol}-${item.interval}`}
-                className="flex items-center justify-between rounded px-2 py-1 text-2xs"
+                className="rounded border-b border-edge px-2 py-1.5 text-2xs last:border-b-0"
               >
-                <span className="truncate font-medium">
-                  {item.symbol}
-                  <span className="ml-1 text-ink-muted">{item.interval}</span>
-                </span>
-                <span
-                  className={clsx(
-                    item.status === 'completed' && 'text-green-500',
-                    item.status === 'failed' && 'text-bear',
-                    item.status === 'running' && 'text-accent',
-                    item.status === 'queued' && 'text-ink-muted',
-                  )}
-                >
-                  {item.status === 'completed'
-                    ? `${item.fetched} 根`
-                    : item.status === 'failed'
-                      ? '失败'
-                      : item.status === 'running'
-                        ? '拉取中…'
-                        : '等待中'}
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">
+                    {item.symbol}
+                    <span className="ml-1 text-ink-muted">{item.interval}</span>
+                  </span>
+                  <span
+                    className={clsx(
+                      item.status === 'completed' && 'text-green-500',
+                      item.status === 'failed' && 'text-bear',
+                      item.status === 'running' && 'text-accent',
+                      item.status === 'queued' && 'text-ink-muted',
+                    )}
+                  >
+                    {item.status === 'completed'
+                      ? item.fetched > 0
+                        ? `${item.fetched} 根新拉取`
+                        : '已缓存'
+                      : item.status === 'failed'
+                        ? `失败 · ${item.attempts} 次`
+                        : item.status === 'running'
+                          ? '拉取中…'
+                          : '等待中'}
+                  </span>
+                </div>
+                {item.status === 'failed' && item.error && (
+                  <p className="mt-1 break-words text-2xs leading-relaxed text-bear/80">
+                    {item.error}
+                  </p>
+                )}
               </div>
             ))}
           </div>
 
           {done && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {job.failed > 0 && (
+                <Button size="sm" onClick={handleRetryFailed}>
+                  仅重试失败项
+                </Button>
+              )}
               <Button size="sm" onClick={handleClose}>
                 关闭
               </Button>
