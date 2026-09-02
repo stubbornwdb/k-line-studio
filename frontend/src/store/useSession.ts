@@ -101,15 +101,28 @@ export const useSession = create<SessionState>()(
       replay: { active: false, index: 0, playing: false, speed: 4 },
 
       setMarket: (exchange, symbol) =>
-        set({ exchange, symbol, replay: { active: false, index: 0, playing: false, speed: 4 } }),
+        set((state) => ({
+          exchange,
+          symbol,
+          // A custom date range belongs to the previous instrument. Keeping it
+          // after a symbol switch can request a period before the new contract
+          // was listed and leave the chart empty.
+          rangePreset: state.rangePreset === 'custom' ? '1M' : state.rangePreset,
+          customStart: undefined,
+          customEnd: undefined,
+          replay: { active: false, index: 0, playing: false, speed: 4 },
+        })),
       setSymbol: (symbol) =>
-        set({
+        set((state) => ({
           symbol,
           selectedNoteId: null,
           selectedDrawingId: null,
           activeTool: 'none',
+          rangePreset: state.rangePreset === 'custom' ? '1M' : state.rangePreset,
+          customStart: undefined,
+          customEnd: undefined,
           replay: { active: false, index: 0, playing: false, speed: 4 },
-        }),
+        })),
       setInterval: (interval) =>
         set((state) => ({
           interval,
