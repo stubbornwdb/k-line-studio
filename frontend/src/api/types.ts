@@ -71,6 +71,13 @@ export interface CandleSeries {
   candles: Candle[]
 }
 
+export interface FirstCandle {
+  exchange: string
+  symbol: string
+  interval: Interval
+  time: number
+}
+
 export type CandleJobStatus = 'queued' | 'running' | 'completed' | 'failed'
 
 export interface CandleJob {

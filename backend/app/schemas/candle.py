@@ -65,3 +65,10 @@ class CandleSeriesOut(BaseModel):
     count: int
     meta: SeriesMeta
     candles: list[CandleOut]
+
+
+class FirstCandleOut(BaseModel):
+    exchange: str
+    symbol: str
+    interval: str
+    time: int = Field(description="Open time of the earliest available candle, epoch ms")

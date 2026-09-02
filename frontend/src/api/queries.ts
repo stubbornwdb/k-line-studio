@@ -8,6 +8,7 @@ import type {
   BatchJob,
   BatchJobInput,
   CandleSeries,
+  FirstCandle,
   CandleJob,
   Drawing,
   DrawingDraft,
@@ -296,6 +297,14 @@ export async function startBatchFetch(input: BatchJobInput): Promise<BatchJob> {
 
 export async function pollBatchJob(jobId: string): Promise<BatchJob> {
   return api.get<BatchJob>(`/candle-jobs/batch/${jobId}`)
+}
+
+export async function getFirstCandle(
+  exchange: string,
+  symbol: string,
+  interval: Interval,
+): Promise<FirstCandle> {
+  return api.get<FirstCandle>('/candles/first', { exchange, symbol, interval })
 }
 
 export function useDrawings(exchange: string, symbol: string) {

@@ -1,4 +1,12 @@
-import { CalendarRange, CandlestickChart, PanelRight, Star } from 'lucide-react'
+import {
+  CalendarRange,
+  CandlestickChart,
+  ChevronsLeft,
+  LocateFixed,
+  Loader2,
+  PanelRight,
+  Star,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import { useExchanges, useWatchlist, useWatchlistMutations } from '@/api/queries'
@@ -11,7 +19,9 @@ import {
   ALL_INTERVALS,
   QUICK_INTERVALS,
   RANGE_PRESETS,
+  parseDateInput,
   toDateInput,
+  toDateTimeInput,
   type ResolvedRange,
 } from '@/lib/timeframes'
 import { useSession } from '@/store/useSession'
@@ -21,14 +31,26 @@ const STRIP_PRESETS = ['1D', '1W', '1M', '3M', '1Y']
 interface Props {
   range: ResolvedRange
   estimatedBars: number
+  navigationBusy: boolean
+  navigationError: string | null
+  onNavigate: (timeMs: number) => void
+  onJumpToFirst: () => void
 }
 
-export function TopBar({ range, estimatedBars }: Props) {
+export function TopBar({
+  range,
+  estimatedBars,
+  navigationBusy,
+  navigationError,
+  onNavigate,
+  onJumpToFirst,
+}: Props) {
   const session = useSession()
   const { data: exchanges } = useExchanges()
   const { data: watchlist } = useWatchlist()
   const watchlistMutations = useWatchlistMutations()
   const [customOpen, setCustomOpen] = useState(session.rangePreset === 'custom')
+  const [navigationInput, setNavigationInput] = useState(toDateTimeInput(Date.now()))
 
   const active = exchanges?.find((item) => item.key === session.exchange)
   const intervals = active?.intervals ?? ALL_INTERVALS
@@ -183,6 +205,43 @@ export function TopBar({ range, estimatedBars }: Props) {
           <span className="text-2xs text-ink-muted">
             只补本地缺失区间，超出交易所上限时自动分批拉取
           </span>
+          <div className="flex basis-full flex-wrap items-center gap-2 border-t border-edge/70 pt-2">
+            <LocateFixed className="h-3.5 w-3.5 text-ink-muted" />
+            <span className="shrink-0 text-2xs font-medium text-ink-muted">时间定位 (UTC)</span>
+            <input
+              type="datetime-local"
+              className="field h-8"
+              value={navigationInput}
+              onChange={(event) => setNavigationInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return
+                const value = parseDateInput(navigationInput)
+                if (value !== undefined) onNavigate(value)
+              }}
+              aria-label="定位到 UTC 时间"
+            />
+            <Button
+              size="sm"
+              variant="solid"
+              disabled={navigationBusy}
+              onClick={() => {
+                const value = parseDateInput(navigationInput)
+                if (value !== undefined) onNavigate(value)
+              }}
+            >
+              {navigationBusy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <LocateFixed className="h-3 w-3" />
+              )}
+              前往
+            </Button>
+            <Button size="sm" variant="solid" disabled={navigationBusy} onClick={onJumpToFirst}>
+              <ChevronsLeft className="h-3 w-3" />
+              最早 K 线
+            </Button>
+            {navigationError && <span className="text-2xs text-bear">{navigationError}</span>}
+          </div>
         </div>
       )}
     </header>

@@ -64,6 +64,8 @@ interface Props {
   visibleBars: number | null
   /** Changing this refits the viewport (new symbol / timeframe / range). */
   fitKey: string
+  /** Optional bar time to place near the middle of the visible chart. */
+  focusTimeMs: number | null
   activeTool: ChartTool
   selectedNoteId: number | null
   selectedDrawingId: number | null
@@ -109,6 +111,7 @@ export function CandleChart(props: Props) {
     intervalMs,
     visibleBars,
     fitKey,
+    focusTimeMs,
     activeTool,
     selectedNoteId,
     selectedDrawingId,
@@ -380,7 +383,14 @@ export function CandleChart(props: Props) {
       fittedKeyRef.current = fitKey
       const scale = chartRef.current?.timeScale()
       if (scale) {
-        if (visibleBars === null && view.bars.length > DEFAULT_LIVE_VISIBLE_BARS) {
+        if (focusTimeMs !== null) {
+          const focusIndex = nearestBarIndex(candles, focusTimeMs)
+          const radius = Math.min(80, Math.max(20, Math.floor(view.bars.length / 3)))
+          scale.setVisibleLogicalRange({
+            from: Math.max(0, focusIndex - radius),
+            to: Math.min(view.bars.length - 1, focusIndex + radius),
+          })
+        } else if (visibleBars === null && view.bars.length > DEFAULT_LIVE_VISIBLE_BARS) {
           const start = Math.max(0, view.bars.length - DEFAULT_LIVE_VISIBLE_BARS)
           scale.setVisibleLogicalRange({ from: start, to: view.bars.length - 1 + 8 })
         } else {
@@ -389,7 +399,7 @@ export function CandleChart(props: Props) {
       }
     }
     bumpViewport()
-  }, [view, showVolume, fitKey, bumpViewport, isPlaceholderData, visibleBars])
+  }, [view, showVolume, fitKey, bumpViewport, isPlaceholderData, visibleBars, focusTimeMs, candles])
 
   // --- plot-area size (drives the overlay's viewBox) ------------------------
   useEffect(() => {
@@ -580,6 +590,21 @@ function buildView(
   })
 
   return { bars, volume, closes, index, source }
+}
+
+function nearestBarIndex(candles: Candle[], targetMs: number): number {
+  if (candles.length === 0) return 0
+  let low = 0
+  let high = candles.length - 1
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2)
+    if (candles[middle].t === targetMs) return middle
+    if (candles[middle].t < targetMs) low = middle + 1
+    else high = middle - 1
+  }
+  if (low >= candles.length) return candles.length - 1
+  if (high < 0) return 0
+  return targetMs - candles[high].t <= candles[low].t - targetMs ? high : low
 }
 
 function nearestNote(notes: Note[], timeMs: number, candles: Candle[]): Note | null {

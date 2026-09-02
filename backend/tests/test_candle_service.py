@@ -142,6 +142,15 @@ async def test_window_is_capped_and_flagged(session, provider, monkeypatch):
     assert result.start == BASE_TIME - 19 * INTERVAL.ms
 
 
+async def test_first_candle_time_probes_from_symbol_listing(session, provider):
+    service = CandleService(session)
+
+    first = await service.first_candle_time("fake", "FAKEUSDT", INTERVAL)
+
+    assert first == 0
+    assert len(provider.requests) == 1
+
+
 def test_partial_provider_response_does_not_cover_unreturned_tail():
     times = [
         BASE_TIME - 5 * INTERVAL.ms,

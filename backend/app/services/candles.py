@@ -13,7 +13,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.errors import ValidationError
+from app.core.errors import NotFoundError, ValidationError
 from app.core.intervals import Interval
 from app.core.timeutil import now_ms
 from app.db.models import Candle, CandleCoverage
@@ -21,6 +21,7 @@ from app.providers.base import ExchangeProvider, FetchProgress, ProviderCandle
 from app.providers.registry import get_provider
 from app.schemas.candle import CandleOut, CandleSeriesOut, SeriesMeta
 from app.services.coverage import CoverageRepository, Range, subtract_ranges
+from app.services.symbols import catalog
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +225,35 @@ class CandleService:
             ),
             candles=[CandleOut.from_row(row) for row in rows],
         )
+
+    async def first_candle_time(
+        self, exchange: str, symbol: str, interval: Interval
+    ) -> int:
+        """Find the first exchange candle without scanning the whole history.
+
+        Instrument onboarding time is a good lower bound. Probing progressively
+        larger windows keeps this inexpensive for both forward and backward
+        paginated exchanges while still handling a delayed first trade.
+        """
+        provider = get_provider(exchange)
+        provider.native_interval(interval)
+        symbols, _ = await catalog.get(provider)
+        info = next((item for item in symbols if item.symbol == symbol), None)
+        if info is None:
+            raise NotFoundError(f"Unknown trading pair: {symbol}")
+
+        start = interval.floor(info.listed_at or 0)
+        current_end = min(now_ms(), start + max(interval.ms * 1_000, 3 * 24 * 60 * 60 * 1_000))
+        while start <= current_end:
+            candles = await provider.fetch_candles(symbol, interval, start, current_end)
+            if candles:
+                return min(candle.open_time for candle in candles)
+            if current_end >= now_ms():
+                break
+            span = max(current_end - start + interval.ms, interval.ms)
+            current_end = min(now_ms(), start + span * 4)
+
+        raise NotFoundError(f"No candle data available for {symbol}")
 
     async def stored_series(self) -> list[dict[str, object]]:
         """Inventory of everything cached locally -- powers the storage panel."""

@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import DbSession, IntervalDep, TimeWindowDep, interval_param
 from app.core.intervals import Interval
 from app.core.timeutil import to_datetime
-from app.schemas.candle import CandleSeriesOut
+from app.schemas.candle import CandleSeriesOut, FirstCandleOut
 from app.services.candles import CandleService
 
 router = APIRouter(tags=["candles"])
@@ -35,6 +35,17 @@ async def get_candles(
     return await service.get_series(
         exchange, symbol, interval, window.start, window.end, refresh=refresh
     )
+
+
+@router.get("/candles/first", response_model=FirstCandleOut)
+async def get_first_candle(
+    session: DbSession,
+    exchange: ExchangeQuery,
+    symbol: SymbolQuery,
+    interval: IntervalDep,
+) -> FirstCandleOut:
+    first = await CandleService(session).first_candle_time(exchange, symbol, interval)
+    return FirstCandleOut(exchange=exchange, symbol=symbol, interval=interval.value, time=first)
 
 
 @router.get("/candles/export")

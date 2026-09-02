@@ -77,13 +77,18 @@ export function resolveRange(
 /** `2024-03-05` (a date input) is read as UTC midnight; `end` gets end-of-day. */
 export function parseDateInput(value: string | undefined, endOfDay = false): number | undefined {
   if (!value) return undefined
-  const parsed = Date.parse(`${value}T00:00:00Z`)
+  const hasTime = value.includes('T')
+  const parsed = Date.parse(hasTime ? `${value}Z` : `${value}T00:00:00Z`)
   if (Number.isNaN(parsed)) return undefined
-  return endOfDay ? parsed + DAY - 1 : parsed
+  return endOfDay && !hasTime ? parsed + DAY - 1 : parsed
 }
 
 export function toDateInput(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
+}
+
+export function toDateTimeInput(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 16)
 }
 
 /** Bars a window would contain -- used to warn before a giant request. */

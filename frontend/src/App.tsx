@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api } from '@/api/client'
 import {
+  getFirstCandle,
   useCandles,
   useDrawingMutations,
   useDrawings,
@@ -30,7 +31,7 @@ import { Button } from '@/components/ui/Button'
 import { TOOL_HINTS } from '@/lib/drawings'
 import { priceDecimals } from '@/lib/format'
 import { DEFAULT_OVERLAYS } from '@/lib/indicators'
-import { INTERVAL_MS, estimateBars, resolveRange } from '@/lib/timeframes'
+import { DAY, INTERVAL_MS, estimateBars, resolveRange, toDateInput } from '@/lib/timeframes'
 import { playAlertSound } from '@/lib/alerts'
 import { useSession } from '@/store/useSession'
 
@@ -44,6 +45,9 @@ export default function App() {
   const [noteForm, setNoteForm] = useState<NoteFormValue | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [navigationBusy, setNavigationBusy] = useState(false)
+  const [navigationError, setNavigationError] = useState<string | null>(null)
+  const [focusTimeMs, setFocusTimeMs] = useState<number | null>(null)
   const seenAlertIdsRef = useRef(new Set<number>())
   const mainRef = useRef<HTMLElement>(null)
 
@@ -59,6 +63,10 @@ export default function App() {
   useEffect(() => {
     document.title = `${session.symbol} · ${session.interval} | K-Line Studio`
   }, [session.interval, session.symbol])
+
+  useEffect(() => {
+    setFocusTimeMs(null)
+  }, [session.exchange, session.symbol, session.interval])
 
   useEffect(() => {
     const syncFullscreen = () => {
@@ -101,6 +109,46 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [session.rangePreset, session.interval, session.customStart, session.customEnd, tick],
   )
+
+  const setNavigationWindow = (anchorMs: number, placeAtStart = false) => {
+    const minimumSpan = INTERVAL_MS[session.interval] * 200
+    const maxSpan = INTERVAL_MS[session.interval] * 2_000
+    const span = Math.min(Math.max(range.end - range.start, minimumSpan, 3 * DAY), maxSpan)
+    const start = placeAtStart ? anchorMs : anchorMs - Math.floor(span / 2)
+    const end = placeAtStart ? anchorMs + span : anchorMs + Math.ceil(span / 2)
+    setFocusTimeMs(anchorMs)
+    session.setCustomRange(toDateInput(start), toDateInput(end))
+  }
+
+  const navigateToTime = async (timeMs: number) => {
+    setNavigationBusy(true)
+    setNavigationError(null)
+    try {
+      const first = await getFirstCandle(session.exchange, session.symbol, session.interval)
+      if (timeMs < first.time) {
+        setNavigationWindow(first.time, true)
+      } else {
+        setNavigationWindow(timeMs)
+      }
+    } catch (error) {
+      setNavigationError((error as Error)?.message ?? '无法定位到指定时间')
+    } finally {
+      setNavigationBusy(false)
+    }
+  }
+
+  const jumpToFirstCandle = async () => {
+    setNavigationBusy(true)
+    setNavigationError(null)
+    try {
+      const first = await getFirstCandle(session.exchange, session.symbol, session.interval)
+      setNavigationWindow(first.time, true)
+    } catch (error) {
+      setNavigationError((error as Error)?.message ?? '无法读取最早 K 线')
+    } finally {
+      setNavigationBusy(false)
+    }
+  }
 
   const query = useCandles({
     exchange: session.exchange,
@@ -265,6 +313,10 @@ export default function App() {
       <TopBar
         range={range}
         estimatedBars={estimateBars(range.start, range.end, session.interval)}
+        navigationBusy={navigationBusy}
+        navigationError={navigationError}
+        onNavigate={(timeMs) => void navigateToTime(timeMs)}
+        onJumpToFirst={() => void jumpToFirstCandle()}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -355,7 +407,8 @@ export default function App() {
               decimals={decimals}
               intervalMs={INTERVAL_MS[session.interval]}
               visibleBars={visibleBars}
-              fitKey={`${session.exchange}|${session.symbol}|${session.interval}|${session.rangePreset}`}
+              focusTimeMs={focusTimeMs}
+              fitKey={`${session.exchange}|${session.symbol}|${session.interval}|${range.start}|${range.end}|${focusTimeMs ?? ''}`}
               activeTool={session.activeTool}
               selectedNoteId={session.selectedNoteId}
               selectedDrawingId={session.selectedDrawingId}
