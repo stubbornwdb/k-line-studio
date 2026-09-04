@@ -160,6 +160,7 @@ export interface MarketOverview {
   favorites: Ticker[]
   new_listings: Ticker[]
   major_coins: Ticker[]
+  hot_coins: Ticker[]
   gainers: Ticker[]
   losers: Ticker[]
   triggered_alert_ids: number[]

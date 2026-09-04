@@ -36,7 +36,7 @@ import { Label, Select, TextInput } from '@/components/ui/Field'
 import { formatCompact, formatListingAge, formatPercent, formatPrice, priceDecimals } from '@/lib/format'
 import { useSession } from '@/store/useSession'
 
-type View = 'favorites' | 'new_listings' | 'major' | 'gainers' | 'losers'
+type View = 'favorites' | 'new_listings' | 'major' | 'hot' | 'gainers' | 'losers'
 type NewListingSort = 'time' | 'change' | 'volume'
 type MajorSort = 'volume' | 'change'
 
@@ -75,6 +75,7 @@ interface Props {
 const VIEWS: { value: View; label: string }[] = [
   { value: 'favorites', label: '收藏' },
   { value: 'major', label: '主流币' },
+  { value: 'hot', label: '热门币' },
   { value: 'new_listings', label: '次新币' },
   { value: 'gainers', label: '涨幅榜' },
   { value: 'losers', label: '跌幅榜' },
@@ -109,7 +110,8 @@ export function MonitorPanel({
   const deferredListingQuery = useDeferredValue(listingQuery.trim())
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const overviewRows = view === 'major' ? overview?.major_coins : overview?.[view]
+  const overviewKey = view === 'major' ? 'major_coins' : view === 'hot' ? 'hot_coins' : view
+  const overviewRows = overview?.[overviewKey as keyof MarketOverview] as Ticker[] | undefined
   const rows = useMemo(() => {
     const raw = overviewRows ?? []
     if (view !== 'major') return raw
@@ -166,6 +168,7 @@ export function MonitorPanel({
   const summary = [
     { label: '收藏', value: overview?.favorites.length ?? 0 },
     { label: '主流', value: overview?.major_coins.length ?? 0 },
+    { label: '热门', value: overview?.hot_coins.length ?? 0 },
     { label: '次新', value: overview?.new_listings.length ?? 0 },
     { label: '涨', value: overview?.gainers.length ?? 0 },
     { label: '跌', value: overview?.losers.length ?? 0 },
@@ -215,7 +218,7 @@ export function MonitorPanel({
             )}
           </Button>
         </div>
-        <div className="mt-3 grid grid-cols-5 border-b border-edge">
+        <div className="mt-3 grid grid-cols-6 border-b border-edge">
           {VIEWS.map((item) => (
             <button
               key={item.value}
@@ -233,7 +236,7 @@ export function MonitorPanel({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-5 divide-x divide-edge border-y border-edge bg-panel-soft">
+        <div className="mt-3 grid grid-cols-6 divide-x divide-edge border-y border-edge bg-panel-soft">
           {summary.map((item) => (
             <div key={item.label} className="px-2 py-2">
               <div className="text-[0.625rem] text-ink-muted">{item.label}</div>

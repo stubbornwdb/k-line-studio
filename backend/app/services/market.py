@@ -22,6 +22,8 @@ _LIST_LIMIT = 30
 _NEW_LISTING_LIMIT = 200
 _NEW_LISTINGS_PAGE_LIMIT = 100
 _MAJOR_LIMIT = 50
+_HOT_LIMIT = 30
+_QUOTE_WHITELIST: set[str] = {"USDT"}
 
 MAJOR_BASES: set[str] = {
     "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
@@ -109,7 +111,11 @@ class MarketService:
                 alert.updated_at = stamp
                 triggered.append(alert.id)
 
-        all_rows = [self._ticker_out(snapshot, ticker) for ticker in snapshot.tickers.values()]
+        all_rows = [
+            self._ticker_out(snapshot, ticker)
+            for ticker in snapshot.tickers.values()
+            if self._is_usdt(snapshot, ticker.symbol)
+        ]
         favorites = [
             self._ticker_out(snapshot, snapshot.tickers[item.symbol])
             for item in watchlist
@@ -130,6 +136,11 @@ class MarketService:
             ),
             key=lambda row: -(row.volume_24h or 0),
         )[:_MAJOR_LIMIT]
+        hot_coins = sorted(
+            all_rows,
+            key=lambda row: _hot_score(row),
+            reverse=True,
+        )[:_HOT_LIMIT]
         return MarketOverviewOut(
             exchange=exchange,
             updated_at=snapshot.updated_at,
@@ -141,6 +152,7 @@ class MarketService:
             favorites=favorites,
             new_listings=new_listings,
             major_coins=major_coins,
+            hot_coins=hot_coins,
             gainers=gainers,
             losers=losers,
             triggered_alert_ids=triggered,
@@ -196,6 +208,11 @@ class MarketService:
         )
 
     @staticmethod
+    def _is_usdt(snapshot: _Snapshot, symbol: str) -> bool:
+        info = snapshot.symbols.get(symbol)
+        return info is not None and info.quote.upper() in _QUOTE_WHITELIST
+
+    @staticmethod
     def _is_major(snapshot: _Snapshot, symbol: str) -> bool:
         info = snapshot.symbols.get(symbol)
         return info is not None and info.base.upper() in MAJOR_BASES
@@ -212,6 +229,7 @@ class MarketService:
             MarketService._ticker_out(snapshot, ticker)
             for ticker in snapshot.tickers.values()
             if ticker.symbol in snapshot.symbols
+            and MarketService._is_usdt(snapshot, ticker.symbol)
             and snapshot.symbols[ticker.symbol].listed_at is not None
             and snapshot.symbols[ticker.symbol].listed_at >= cutoff
         ]
@@ -236,6 +254,17 @@ class MarketService:
         if needle:
             rows = [row for row in rows if _matches(row, needle)]
         return [row.symbol for row in rows]
+
+
+def _hot_score(row: TickerOut) -> float:
+    """Composite heat score: volume weighted by price movement magnitude.
+
+    Mirrors Binance/TradingView trending logic — high-volume coins with
+    significant price movement rank highest.
+    """
+    volume = row.volume_24h or 0
+    change_magnitude = abs(row.change_24h_pct)
+    return volume * (1 + change_magnitude / 100)
 
 
 def _normalize(text: str) -> str:

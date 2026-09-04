@@ -74,6 +74,7 @@ class MarketOverviewOut(BaseModel):
     favorites: list[TickerOut]
     new_listings: list[TickerOut]
     major_coins: list[TickerOut]
+    hot_coins: list[TickerOut]
     gainers: list[TickerOut]
     losers: list[TickerOut]
     triggered_alert_ids: list[int]
