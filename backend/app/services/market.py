@@ -21,6 +21,15 @@ _CACHE_TTL_SECONDS = 10.0
 _LIST_LIMIT = 30
 _NEW_LISTING_LIMIT = 200
 _NEW_LISTINGS_PAGE_LIMIT = 100
+_MAJOR_LIMIT = 50
+
+MAJOR_BASES: set[str] = {
+    "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
+    "MATIC", "POL", "UNI", "LTC", "BCH", "ATOM", "FIL", "APT", "ARB", "OP",
+    "NEAR", "ICP", "FTM", "ETC", "AAVE", "MKR", "ALGO", "HBAR", "SUI", "SEI",
+    "TIA", "INJ", "STX", "RUNE", "SAND", "MANA", "AXS", "IMX", "PEPE", "WIF",
+    "FLOKI", "SHIB", "TON", "TRX", "CRV", "SNX", "LDO", "RENDER", "FET", "TAO",
+}
 
 
 @dataclass(slots=True)
@@ -114,6 +123,13 @@ class MarketService:
         )[:_NEW_LISTING_LIMIT]
         gainers = sorted(all_rows, key=lambda row: row.change_24h_pct, reverse=True)[:_LIST_LIMIT]
         losers = sorted(all_rows, key=lambda row: row.change_24h_pct)[:_LIST_LIMIT]
+        major_coins = sorted(
+            (
+                row for row in all_rows
+                if self._is_major(snapshot, row.symbol)
+            ),
+            key=lambda row: -(row.volume_24h or 0),
+        )[:_MAJOR_LIMIT]
         return MarketOverviewOut(
             exchange=exchange,
             updated_at=snapshot.updated_at,
@@ -124,6 +140,7 @@ class MarketService:
             ),
             favorites=favorites,
             new_listings=new_listings,
+            major_coins=major_coins,
             gainers=gainers,
             losers=losers,
             triggered_alert_ids=triggered,
@@ -177,6 +194,11 @@ class MarketService:
             low_24h=ticker.low_24h,
             listed_at=symbol.listed_at if symbol else None,
         )
+
+    @staticmethod
+    def _is_major(snapshot: _Snapshot, symbol: str) -> bool:
+        info = snapshot.symbols.get(symbol)
+        return info is not None and info.base.upper() in MAJOR_BASES
 
     @staticmethod
     def _new_listing_rows(

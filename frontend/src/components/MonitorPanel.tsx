@@ -36,8 +36,9 @@ import { Label, Select, TextInput } from '@/components/ui/Field'
 import { formatCompact, formatListingAge, formatPercent, formatPrice, priceDecimals } from '@/lib/format'
 import { useSession } from '@/store/useSession'
 
-type View = 'favorites' | 'new_listings' | 'gainers' | 'losers'
+type View = 'favorites' | 'new_listings' | 'major' | 'gainers' | 'losers'
 type NewListingSort = 'time' | 'change' | 'volume'
+type MajorSort = 'volume' | 'change'
 
 const AGE_PRESETS = [
   { days: 7, label: '7天' },
@@ -55,6 +56,11 @@ const SORT_OPTIONS: { value: NewListingSort; label: string }[] = [
   { value: 'volume', label: '成交量' },
 ]
 
+const MAJOR_SORT_OPTIONS: { value: MajorSort; label: string }[] = [
+  { value: 'volume', label: '成交量' },
+  { value: 'change', label: '涨跌幅' },
+]
+
 interface Props {
   exchange: string
   currentSymbol: string
@@ -68,6 +74,7 @@ interface Props {
 
 const VIEWS: { value: View; label: string }[] = [
   { value: 'favorites', label: '收藏' },
+  { value: 'major', label: '主流币' },
   { value: 'new_listings', label: '次新币' },
   { value: 'gainers', label: '涨幅榜' },
   { value: 'losers', label: '跌幅榜' },
@@ -93,6 +100,7 @@ export function MonitorPanel({
   const [ageDays, setAgeDays] = useState(90)
   const [sortBy, setSortBy] = useState<NewListingSort>('time')
   const [batchOpen, setBatchOpen] = useState(false)
+  const [majorSort, setMajorSort] = useState<MajorSort>('volume')
   const [listingQuery, setListingQuery] = useState('')
   const { data: watchlist } = useWatchlist()
   const watchlistMutations = useWatchlistMutations()
@@ -101,7 +109,15 @@ export function MonitorPanel({
   const deferredListingQuery = useDeferredValue(listingQuery.trim())
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const rows = overview?.[view] ?? []
+  const overviewRows = view === 'major' ? overview?.major_coins : overview?.[view]
+  const rows = useMemo(() => {
+    const raw = overviewRows ?? []
+    if (view !== 'major') return raw
+    if (majorSort === 'change') {
+      return [...raw].sort((a, b) => b.change_24h_pct - a.change_24h_pct)
+    }
+    return raw
+  }, [overviewRows, view, majorSort])
   const newListings = useNewListings(exchange, deferredListingQuery, ageDays, sortBy)
   const favoriteIds = useMemo(
     () =>
@@ -149,9 +165,10 @@ export function MonitorPanel({
   const listingEmpty = !listingLoading && !listingError && listingRows.length === 0
   const summary = [
     { label: '收藏', value: overview?.favorites.length ?? 0 },
+    { label: '主流', value: overview?.major_coins.length ?? 0 },
     { label: '次新', value: overview?.new_listings.length ?? 0 },
-    { label: '上涨', value: overview?.gainers.length ?? 0 },
-    { label: '下跌', value: overview?.losers.length ?? 0 },
+    { label: '涨', value: overview?.gainers.length ?? 0 },
+    { label: '跌', value: overview?.losers.length ?? 0 },
   ]
 
   const createAlert = () => {
@@ -198,7 +215,7 @@ export function MonitorPanel({
             )}
           </Button>
         </div>
-        <div className="mt-3 grid grid-cols-4 border-b border-edge">
+        <div className="mt-3 grid grid-cols-5 border-b border-edge">
           {VIEWS.map((item) => (
             <button
               key={item.value}
@@ -216,7 +233,7 @@ export function MonitorPanel({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-4 divide-x divide-edge border-y border-edge bg-panel-soft">
+        <div className="mt-3 grid grid-cols-5 divide-x divide-edge border-y border-edge bg-panel-soft">
           {summary.map((item) => (
             <div key={item.label} className="px-2 py-2">
               <div className="text-[0.625rem] text-ink-muted">{item.label}</div>
@@ -226,6 +243,35 @@ export function MonitorPanel({
             </div>
           ))}
         </div>
+
+        {view === 'major' && (
+          <div className="mt-3 space-y-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <ArrowDownUp className="h-3 w-3 text-ink-muted" />
+              <span className="shrink-0 text-2xs font-medium text-ink-muted">排序</span>
+              <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+                {MAJOR_SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setMajorSort(opt.value)}
+                    className={clsx(
+                      'shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
+                      majorSort === opt.value
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-ink-muted hover:text-ink',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="text-2xs text-ink-muted">
+              共 {rows.length} 个主流合约
+            </div>
+          </div>
+        )}
 
         {view === 'new_listings' && (
           <div className="mt-3 space-y-2">

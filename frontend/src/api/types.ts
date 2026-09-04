@@ -159,6 +159,7 @@ export interface MarketOverview {
   selected: Ticker | null
   favorites: Ticker[]
   new_listings: Ticker[]
+  major_coins: Ticker[]
   gainers: Ticker[]
   losers: Ticker[]
   triggered_alert_ids: number[]
