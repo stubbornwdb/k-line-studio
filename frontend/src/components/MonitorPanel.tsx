@@ -6,8 +6,10 @@ import {
   ChevronRight,
   CircleDollarSign,
   Clock,
+  CloudOff,
   Download,
   Flame,
+  SearchX,
   Minus,
   Plus,
   Star,
@@ -15,7 +17,8 @@ import {
   VolumeX,
   X,
 } from 'lucide-react'
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import {
   useAlertMutations,
@@ -220,7 +223,7 @@ export function MonitorPanel({
               type="button"
               onClick={() => setView(item.value)}
               className={clsx(
-                'border-b-2 px-1 py-2 text-2xs transition-colors',
+                'focus-ring border-b-2 px-1 py-2 text-2xs transition-colors',
                 view === item.value
                   ? 'border-accent font-medium text-ink'
                   : 'border-transparent text-ink-muted hover:text-ink',
@@ -245,7 +248,7 @@ export function MonitorPanel({
                     type="button"
                     onClick={() => setMajorSort(opt.value)}
                     className={clsx(
-                      'shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
+                      'focus-ring shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
                       majorSort === opt.value
                         ? 'bg-accent/15 text-accent'
                         : 'text-ink-muted hover:text-ink',
@@ -265,10 +268,7 @@ export function MonitorPanel({
         {view === 'hot' && (
           <div className="mt-3 flex items-start gap-2 text-2xs text-ink-muted">
             <Flame className="mt-0.5 h-3 w-3 shrink-0" />
-            <span>
-              按成交额、涨跌幅、振幅三项综合排名，已剔除成交额偏低的合约。
-              <span className="font-mono">⇕</span> 为 24h 振幅。
-            </span>
+            <span>按成交额、涨跌幅、24h 振幅三项综合排名，已剔除成交额低于全市场中位数的合约。</span>
           </div>
         )}
 
@@ -284,7 +284,7 @@ export function MonitorPanel({
                     type="button"
                     onClick={() => setAgeDays(preset.days)}
                     className={clsx(
-                      'shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
+                      'focus-ring shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
                       ageDays === preset.days
                         ? 'bg-accent/15 text-accent'
                         : 'text-ink-muted hover:text-ink',
@@ -305,7 +305,7 @@ export function MonitorPanel({
                     type="button"
                     onClick={() => setSortBy(opt.value)}
                     className={clsx(
-                      'shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
+                      'focus-ring shrink-0 rounded-sm px-1.5 py-1 text-2xs transition-colors',
                       sortBy === opt.value
                         ? 'bg-accent/15 text-accent'
                         : 'text-ink-muted hover:text-ink',
@@ -354,10 +354,25 @@ export function MonitorPanel({
       </div>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && <EmptyState text="正在读取交易所行情…" />}
-        {isError && <EmptyState text={(error as Error)?.message ?? '行情加载失败'} error />}
+        {isLoading && <TickerSkeleton />}
+        {isError && (
+          <EmptyState
+            icon={CloudOff}
+            text={(error as Error)?.message ?? '行情加载失败'}
+            hint="检查后端是否在运行，或稍后重试。"
+            error
+          />
+        )}
         {view !== 'new_listings' && !isLoading && !isError && rows.length === 0 && (
-          <EmptyState text={view === 'favorites' ? '还没有收藏交易对' : '暂无符合条件的合约'} />
+          <EmptyState
+            icon={view === 'favorites' ? Star : SearchX}
+            text={view === 'favorites' ? '还没有收藏交易对' : '暂无符合条件的合约'}
+            hint={
+              view === 'favorites'
+                ? '点任意行右侧的星标，或用顶栏搜索框选中交易对后点星标收藏。'
+                : undefined
+            }
+          />
         )}
         {view !== 'new_listings' && !isLoading && !isError && rows.length > 0 && (
           <div className="divide-y divide-edge">
@@ -376,11 +391,19 @@ export function MonitorPanel({
           </div>
         )}
 
-        {view === 'new_listings' && listingLoading && <EmptyState text="正在读取次新币…" />}
-        {view === 'new_listings' && listingError && <EmptyState text={listingError} error />}
+        {view === 'new_listings' && listingLoading && <TickerSkeleton />}
+        {view === 'new_listings' && listingError && (
+          <EmptyState icon={CloudOff} text={listingError} hint="稍后重试，或缩小筛选范围。" error />
+        )}
         {view === 'new_listings' && listingEmpty && (
           <EmptyState
+            icon={SearchX}
             text={deferredListingQuery ? '没有匹配的次新币' : '没有符合筛选条件的次新币'}
+            hint={
+              deferredListingQuery
+                ? `没有名称包含「${deferredListingQuery}」的合约，试试更短的关键词。`
+                : '把上线时间放宽到更长的区间试试。'
+            }
           />
         )}
         {view === 'new_listings' && !listingLoading && !listingError && listingRows.length > 0 && (
@@ -584,32 +607,48 @@ function TickerRow({
         active && 'bg-accent/5 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent',
       )}
     >
-      <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpen(ticker.symbol)}>
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-xs font-semibold">{ticker.display}</span>
-          {active && <span className="text-[0.625rem] text-accent">当前</span>}
-          {showAge && ticker.listed_at !== null && (
-            <span className="text-[0.625rem] text-ink-muted">
-              {formatListingAge(ticker.listed_at)}
-            </span>
-          )}
-        </div>
-        <div className="mt-1 flex items-center gap-2 font-mono text-2xs">
-          <span>{formatPrice(ticker.last, decimals)}</span>
-          <span className={positive ? 'text-bull' : 'text-bear'}>
+      {/* Change sits in its own right-hand column so the percentages line up
+          down the list -- prices carry different decimal counts, which made a
+          single inline row read ragged. */}
+      <button
+        type="button"
+        className="focus-ring min-w-0 flex-1 rounded-sm text-left"
+        onClick={() => onOpen(ticker.symbol)}
+      >
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-xs font-semibold">{ticker.display}</span>
+          <span
+            className={clsx(
+              'shrink-0 font-mono text-2xs font-medium',
+              positive ? 'text-bull' : 'text-bear',
+            )}
+          >
             {formatPercent(ticker.change_24h_pct)}
           </span>
+        </div>
+        <div className="mt-1 flex items-center gap-1.5 font-mono text-2xs text-ink-muted">
+          <span className="text-ink">{formatPrice(ticker.last, decimals)}</span>
           {ticker.volume_24h !== null && (
-            <span className="text-ink-muted">{formatCompact(ticker.volume_24h)}</span>
+            <>
+              <Separator />
+              <span>{formatCompact(ticker.volume_24h)}</span>
+            </>
           )}
           {showAmplitude && amplitude !== null && (
-            <span
-              className="text-ink-muted"
-              title={`24h 振幅 ${amplitude.toFixed(1)}%（最高 / 最低之差），远大于涨跌幅说明来回洗盘`}
-            >
-              ⇕{amplitude.toFixed(0)}%
-            </span>
+            <>
+              <Separator />
+              <span title={`24h 振幅 ${amplitude.toFixed(1)}%，远大于涨跌幅说明来回洗盘`}>
+                振幅 {amplitude.toFixed(0)}%
+              </span>
+            </>
           )}
+          {showAge && ticker.listed_at !== null && (
+            <>
+              <Separator />
+              <span>{formatListingAge(ticker.listed_at)}</span>
+            </>
+          )}
+          {active && <span className="ml-auto shrink-0 text-accent">当前</span>}
         </div>
       </button>
       <Button
@@ -626,10 +665,55 @@ function TickerRow({
   )
 }
 
-function EmptyState({ text, error = false }: { text: string; error?: boolean }) {
+function Separator() {
+  return <span className="select-none text-edge">·</span>
+}
+
+/**
+ * Placeholder rows shaped like TickerRow, so the list keeps its geometry while
+ * the first snapshot lands instead of collapsing to a line of text.
+ */
+function TickerSkeleton({ rows = 7 }: { rows?: number }) {
   return (
-    <p className={clsx('px-3 py-8 text-center text-2xs', error ? 'text-bear' : 'text-ink-muted')}>
-      {text}
-    </p>
+    <div className="divide-y divide-edge" aria-hidden>
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="px-3 py-2.5">
+          <div className="flex items-baseline gap-2">
+            <div className="skeleton h-3" style={{ width: `${44 + ((index * 13) % 28)}%` }} />
+            <div className="skeleton ml-auto h-3 w-10" />
+          </div>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <div className="skeleton h-2.5 w-14" />
+            <div className="skeleton h-2.5 w-10" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Empty and error states carry a next step where one exists -- an empty
+ * watchlist should say how to fill it, not just report that it is empty.
+ */
+function EmptyState({
+  text,
+  hint,
+  icon: Icon,
+  error = false,
+}: {
+  text: string
+  hint?: ReactNode
+  icon?: LucideIcon
+  error?: boolean
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+      {Icon && (
+        <Icon className={clsx('h-5 w-5', error ? 'text-bear' : 'text-ink-muted/60')} strokeWidth={1.5} />
+      )}
+      <p className={clsx('text-2xs', error ? 'text-bear' : 'text-ink')}>{text}</p>
+      {hint && <p className="max-w-[15rem] text-[0.625rem] leading-relaxed text-ink-muted">{hint}</p>}
+    </div>
   )
 }

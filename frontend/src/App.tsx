@@ -464,7 +464,7 @@ export default function App() {
                 key={tab}
                 type="button"
                 onClick={() => session.setSidebarTab(tab)}
-                className={`flex-1 border-b-2 py-2.5 text-2xs font-medium transition-colors ${
+                className={`focus-ring flex-1 border-b-2 py-2.5 text-2xs font-medium transition-colors ${
                   session.sidebarTab === tab
                     ? 'border-b-2 border-accent text-ink'
                     : 'border-transparent text-ink-muted hover:text-ink'

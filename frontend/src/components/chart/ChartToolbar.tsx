@@ -184,7 +184,7 @@ export function ChartToolbar({
           href={exportHref}
           download
           title="导出 CSV"
-          className="inline-flex h-8 w-8 items-center justify-center rounded text-ink-muted transition-colors hover:bg-panel-soft hover:text-ink"
+          className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded text-ink-muted transition-colors hover:bg-panel-soft hover:text-ink"
         >
           <Download className="h-3.5 w-3.5" />
         </a>
