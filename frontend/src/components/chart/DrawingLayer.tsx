@@ -574,7 +574,7 @@ function StylePopover({
           type="button"
           title={color}
           onClick={() => onPatch({ color })}
-          className="h-4 w-4 rounded-full border border-edge transition hover:scale-110"
+          className="focus-ring h-4 w-4 rounded-full border border-edge transition hover:scale-110"
           style={{ background: color }}
         />
       ))}
@@ -583,7 +583,7 @@ function StylePopover({
         type="button"
         title="实线 / 虚线"
         onClick={() => onPatch({ style: shape.dashed ? 'solid' : 'dashed' })}
-        className="flex h-5 w-6 items-center justify-center rounded hover:bg-panel-soft"
+        className="focus-ring flex h-5 w-6 items-center justify-center rounded hover:bg-panel-soft"
       >
         <svg width={16} height={2} className="overflow-visible">
           <line
@@ -601,7 +601,7 @@ function StylePopover({
         type="button"
         title="删除 (Delete)"
         onClick={onDelete}
-        className="flex h-5 w-5 items-center justify-center rounded text-bear hover:bg-bear/10"
+        className="focus-ring flex h-5 w-5 items-center justify-center rounded text-bear hover:bg-bear/10"
       >
         <Trash2 className="h-3 w-3" />
       </button>

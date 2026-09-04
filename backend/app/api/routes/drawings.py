@@ -34,9 +34,7 @@ async def create_drawing(session: DbSession, payload: DrawingCreate) -> DrawingO
 
 
 @router.patch("/{drawing_id}", response_model=DrawingOut)
-async def update_drawing(
-    session: DbSession, drawing_id: int, payload: DrawingUpdate
-) -> DrawingOut:
+async def update_drawing(session: DbSession, drawing_id: int, payload: DrawingUpdate) -> DrawingOut:
     return await DrawingService(session).update(drawing_id, payload)
 
 

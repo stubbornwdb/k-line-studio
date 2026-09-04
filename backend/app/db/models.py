@@ -59,9 +59,7 @@ class CandleCoverage(Base):
     start_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
     end_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    __table_args__ = (
-        Index("ix_coverage_series", "exchange", "symbol", "interval", "start_ms"),
-    )
+    __table_args__ = (Index("ix_coverage_series", "exchange", "symbol", "interval", "start_ms"),)
 
 
 class Note(Base):
@@ -88,9 +86,7 @@ class Note(Base):
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    __table_args__ = (
-        Index("ix_notes_series_time", "exchange", "symbol", "time_ms"),
-    )
+    __table_args__ = (Index("ix_notes_series_time", "exchange", "symbol", "time_ms"),)
 
 
 class Drawing(Base):

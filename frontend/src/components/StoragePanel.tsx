@@ -44,7 +44,7 @@ export function StoragePanel({ timezone, onOpen }: Props) {
             <button
               type="button"
               onClick={() => onOpen(row.exchange, row.symbol, row.interval)}
-              className="min-w-0 flex-1 text-left"
+              className="focus-ring min-w-0 flex-1 rounded-sm text-left"
             >
               <p className="truncate text-xs font-medium">
                 {row.symbol}

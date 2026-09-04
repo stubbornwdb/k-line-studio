@@ -220,9 +220,7 @@ class BatchJobManager:
             updated_at=stamp,
         )
         self._jobs[job_id] = job
-        job.task = asyncio.create_task(
-            self._run(job, payload), name=f"batch-job-{job_id}"
-        )
+        job.task = asyncio.create_task(self._run(job, payload), name=f"batch-job-{job_id}")
         return self._snapshot(job)
 
     def get(self, job_id: str) -> BatchJobOut | None:
@@ -285,16 +283,11 @@ class BatchJobManager:
                         )
                         job.updated_at = now_ms()
                         if attempt < _BATCH_ITEM_RETRIES:
-                            await asyncio.sleep(
-                                _BATCH_RETRY_BASE_DELAY * (2 ** (attempt - 1))
-                            )
+                            await asyncio.sleep(_BATCH_RETRY_BASE_DELAY * (2 ** (attempt - 1)))
                 else:
                     item.status = "failed"
                     if item.errors:
-                        item.error = (
-                            f"已重试 {_BATCH_ITEM_RETRIES} 次："
-                            + "；".join(item.errors)
-                        )
+                        item.error = f"已重试 {_BATCH_ITEM_RETRIES} 次：" + "；".join(item.errors)
                 job.updated_at = now_ms()
 
         await asyncio.gather(*(fetch_one(item) for item in job.items))
@@ -333,7 +326,8 @@ class BatchJobManager:
     def _prune(self) -> None:
         cutoff = now_ms() - 60 * 60 * 1000
         stale = [
-            jid for jid, j in self._jobs.items()
+            jid
+            for jid, j in self._jobs.items()
             if j.updated_at < cutoff and j.status in {"completed", "failed"}
         ]
         for jid in stale:

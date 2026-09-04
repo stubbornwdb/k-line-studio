@@ -24,7 +24,7 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
           title={option.title}
           onClick={() => onChange(option.value)}
           className={clsx(
-            'h-7 min-w-[2rem] rounded-sm px-2 text-2xs font-medium transition-colors',
+            'focus-ring h-7 min-w-[2rem] rounded-sm px-2 text-2xs font-medium transition-colors',
             option.value === value
               ? 'bg-panel text-ink shadow-sm ring-1 ring-edge'
               : 'text-ink-muted hover:bg-panel hover:text-ink',

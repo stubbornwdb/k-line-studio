@@ -12,7 +12,9 @@
   --ink-muted: 105 108 112;
   --accent: 38 87 214;
   --bull: 198 63 63;
-  --bear: 28 142 94;
+  /* Darkened from `28 142 94`, which sat at 3.93:1 on the light canvas and
+     failed WCAG AA for the 11px change-percent column. Now 4.94:1. */
+  --bear: 24 124 81;
 }
 
 .dark {
@@ -45,6 +47,31 @@
     font: inherit;
   }
 
+  /* Quotes refresh on a timer, so digits must not reflow between ticks. The
+     mono stack is already fixed-width; this holds even on a fallback face. */
+  .font-mono,
+  input,
+  select {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Keep hint copy off ragged last lines without hyphenating symbol names. */
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Motion here is only ever feedback, so it is safe to drop entirely. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   /* Consistent, unobtrusive scrollbars in both themes. */
   * {
     scrollbar-width: thin;
@@ -74,5 +101,18 @@
 
   .chip {
     @apply inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-2xs font-medium;
+  }
+
+  /* One focus treatment for every interactive surface, including the bare
+     <button> tabs and rows that previously showed the keyboard nothing. */
+  .focus-ring {
+    @apply outline-none focus-visible:outline focus-visible:outline-2
+      focus-visible:-outline-offset-2 focus-visible:outline-accent;
+  }
+
+  /* Placeholder block sized like the content it stands in for, so nothing
+     shifts when the real row arrives. */
+  .skeleton {
+    @apply animate-pulse rounded-sm bg-edge/60;
   }
 }

@@ -136,7 +136,7 @@ export function BatchFetchDialog({
                     type="button"
                     onClick={() => toggle(iv.value)}
                     className={clsx(
-                      'rounded border px-3 py-1.5 text-xs transition-colors',
+                      'focus-ring rounded border px-3 py-1.5 text-xs transition-colors',
                       selected.includes(iv.value)
                         ? 'border-accent bg-accent/15 text-accent'
                         : 'border-edge text-ink-muted hover:text-ink',
@@ -161,7 +161,7 @@ export function BatchFetchDialog({
                     type="button"
                     onClick={() => setRangeDays(opt.days)}
                     className={clsx(
-                      'rounded border px-3 py-1.5 text-xs transition-colors',
+                      'focus-ring rounded border px-3 py-1.5 text-xs transition-colors',
                       rangeDays === opt.days
                         ? 'border-accent bg-accent/15 text-accent'
                         : 'border-edge text-ink-muted hover:text-ink',

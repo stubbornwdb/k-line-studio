@@ -14,13 +14,77 @@ from app.core.timeutil import now_ms
 from app.db.models import PriceAlert, Watchlist
 from app.providers.base import SymbolInfo, TickerInfo
 from app.providers.registry import get_provider
-from app.schemas.market import MarketListingPageOut, MarketOverviewOut, TickerOut
+from app.schemas.market import (
+    MarketBreadthOut,
+    MarketListingPageOut,
+    MarketOverviewOut,
+    TickerOut,
+)
 from app.services.symbols import catalog
 
 _CACHE_TTL_SECONDS = 10.0
 _LIST_LIMIT = 30
 _NEW_LISTING_LIMIT = 200
 _NEW_LISTINGS_PAGE_LIMIT = 100
+_MAJOR_LIMIT = 50
+_HOT_LIMIT = 30
+# Turnover / |change| / amplitude, each as a rank percentile. See _hot_coins.
+_HOT_WEIGHTS = (0.5, 0.3, 0.2)
+_HOT_VOLUME_GATE = 0.5
+_QUOTE_WHITELIST: set[str] = {"USDT"}
+
+MAJOR_BASES: set[str] = {
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB",
+    "XRP",
+    "DOGE",
+    "ADA",
+    "AVAX",
+    "DOT",
+    "LINK",
+    "MATIC",
+    "POL",
+    "UNI",
+    "LTC",
+    "BCH",
+    "ATOM",
+    "FIL",
+    "APT",
+    "ARB",
+    "OP",
+    "NEAR",
+    "ICP",
+    "FTM",
+    "ETC",
+    "AAVE",
+    "MKR",
+    "ALGO",
+    "HBAR",
+    "SUI",
+    "SEI",
+    "TIA",
+    "INJ",
+    "STX",
+    "RUNE",
+    "SAND",
+    "MANA",
+    "AXS",
+    "IMX",
+    "PEPE",
+    "WIF",
+    "FLOKI",
+    "SHIB",
+    "TON",
+    "TRX",
+    "CRV",
+    "SNX",
+    "LDO",
+    "RENDER",
+    "FET",
+    "TAO",
+}
 
 
 @dataclass(slots=True)
@@ -89,9 +153,7 @@ class MarketService:
                 continue
             value = ticker.last if alert.kind == "price" else ticker.change_24h_pct
             matched = (
-                value >= alert.threshold
-                if alert.direction == "above"
-                else value <= alert.threshold
+                value >= alert.threshold if alert.direction == "above" else value <= alert.threshold
             )
             if matched:
                 stamp = now_ms()
@@ -100,7 +162,11 @@ class MarketService:
                 alert.updated_at = stamp
                 triggered.append(alert.id)
 
-        all_rows = [self._ticker_out(snapshot, ticker) for ticker in snapshot.tickers.values()]
+        all_rows = [
+            self._ticker_out(snapshot, ticker)
+            for ticker in snapshot.tickers.values()
+            if self._is_usdt(snapshot, ticker.symbol)
+        ]
         favorites = [
             self._ticker_out(snapshot, snapshot.tickers[item.symbol])
             for item in watchlist
@@ -114,9 +180,22 @@ class MarketService:
         )[:_NEW_LISTING_LIMIT]
         gainers = sorted(all_rows, key=lambda row: row.change_24h_pct, reverse=True)[:_LIST_LIMIT]
         losers = sorted(all_rows, key=lambda row: row.change_24h_pct)[:_LIST_LIMIT]
+        major_coins = sorted(
+            (row for row in all_rows if self._is_major(snapshot, row.symbol)),
+            key=lambda row: -(row.volume_24h or 0),
+        )[:_MAJOR_LIMIT]
+        hot_coins = _hot_coins(all_rows, _HOT_LIMIT)
+        advancing = sum(1 for row in all_rows if row.change_24h_pct > 0)
+        declining = sum(1 for row in all_rows if row.change_24h_pct < 0)
         return MarketOverviewOut(
             exchange=exchange,
             updated_at=snapshot.updated_at,
+            breadth=MarketBreadthOut(
+                total=len(all_rows),
+                advancing=advancing,
+                declining=declining,
+                flat=len(all_rows) - advancing - declining,
+            ),
             selected=(
                 self._ticker_out(snapshot, snapshot.tickers[selected_symbol])
                 if selected_symbol in snapshot.tickers
@@ -124,6 +203,8 @@ class MarketService:
             ),
             favorites=favorites,
             new_listings=new_listings,
+            major_coins=major_coins,
+            hot_coins=hot_coins,
             gainers=gainers,
             losers=losers,
             triggered_alert_ids=triggered,
@@ -179,6 +260,16 @@ class MarketService:
         )
 
     @staticmethod
+    def _is_usdt(snapshot: _Snapshot, symbol: str) -> bool:
+        info = snapshot.symbols.get(symbol)
+        return info is not None and info.quote.upper() in _QUOTE_WHITELIST
+
+    @staticmethod
+    def _is_major(snapshot: _Snapshot, symbol: str) -> bool:
+        info = snapshot.symbols.get(symbol)
+        return info is not None and info.base.upper() in MAJOR_BASES
+
+    @staticmethod
     def _new_listing_rows(
         snapshot: _Snapshot,
         *,
@@ -190,6 +281,7 @@ class MarketService:
             MarketService._ticker_out(snapshot, ticker)
             for ticker in snapshot.tickers.values()
             if ticker.symbol in snapshot.symbols
+            and MarketService._is_usdt(snapshot, ticker.symbol)
             and snapshot.symbols[ticker.symbol].listed_at is not None
             and snapshot.symbols[ticker.symbol].listed_at >= cutoff
         ]
@@ -214,6 +306,66 @@ class MarketService:
         if needle:
             rows = [row for row in rows if _matches(row, needle)]
         return [row.symbol for row in rows]
+
+
+def _amplitude_pct(row: TickerOut) -> float:
+    """24h high-low travel as a percentage of the low."""
+    if row.high_24h is None or row.low_24h is None or row.low_24h <= 0:
+        return 0.0
+    return (row.high_24h - row.low_24h) / row.low_24h * 100
+
+
+def _rank_percentiles(values: list[float]) -> list[float]:
+    """Map each value to its 0..1 rank inside the list; ties share a rank."""
+    count = len(values)
+    if count <= 1:
+        return [1.0] * count
+    order = sorted(range(count), key=lambda index: values[index])
+    percentiles = [0.0] * count
+    head = 0
+    while head < count:
+        tail = head
+        while tail + 1 < count and values[order[tail + 1]] == values[order[head]]:
+            tail += 1
+        shared = ((head + tail) / 2) / (count - 1)
+        for position in range(head, tail + 1):
+            percentiles[order[position]] = shared
+        head = tail + 1
+    return percentiles
+
+
+def _hot_coins(rows: list[TickerOut], limit: int) -> list[TickerOut]:
+    """Rank by attention (turnover) blended with movement (change, amplitude).
+
+    Each dimension is converted to a rank percentile before weighting. Raw
+    turnover spans orders of magnitude, so any direct blend of the raw numbers
+    collapses into a plain volume sort — which would make this list a duplicate
+    of the major-coins tab instead of surfacing what is actually moving.
+    """
+    if not rows:
+        return []
+    universe_volume = _rank_percentiles([row.volume_24h or 0.0 for row in rows])
+    # Illiquid microcaps post huge percentage moves on noise; keep the liquid half.
+    liquid = [
+        row
+        for row, percentile in zip(rows, universe_volume, strict=True)
+        if percentile >= _HOT_VOLUME_GATE
+    ] or list(rows)
+
+    volume = _rank_percentiles([row.volume_24h or 0.0 for row in liquid])
+    change = _rank_percentiles([abs(row.change_24h_pct) for row in liquid])
+    amplitude = _rank_percentiles([_amplitude_pct(row) for row in liquid])
+    weight_volume, weight_change, weight_amplitude = _HOT_WEIGHTS
+
+    def score(index: int) -> float:
+        return (
+            weight_volume * volume[index]
+            + weight_change * change[index]
+            + weight_amplitude * amplitude[index]
+        )
+
+    ranked = sorted(range(len(liquid)), key=lambda index: (-score(index), liquid[index].symbol))
+    return [liquid[index] for index in ranked[:limit]]
 
 
 def _normalize(text: str) -> str:

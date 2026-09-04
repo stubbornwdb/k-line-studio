@@ -67,12 +67,24 @@ class TickerOut(BaseModel):
     listed_at: int | None = None
 
 
+class MarketBreadthOut(BaseModel):
+    """Advance/decline counts across the whole quote universe."""
+
+    total: int
+    advancing: int
+    declining: int
+    flat: int
+
+
 class MarketOverviewOut(BaseModel):
     exchange: str
     updated_at: int
+    breadth: MarketBreadthOut
     selected: TickerOut | None = None
     favorites: list[TickerOut]
     new_listings: list[TickerOut]
+    major_coins: list[TickerOut]
+    hot_coins: list[TickerOut]
     gainers: list[TickerOut]
     losers: list[TickerOut]
     triggered_alert_ids: list[int]

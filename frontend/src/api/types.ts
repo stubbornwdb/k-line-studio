@@ -153,12 +153,22 @@ export interface Ticker {
   listed_at: number | null
 }
 
+export interface MarketBreadth {
+  total: number
+  advancing: number
+  declining: number
+  flat: number
+}
+
 export interface MarketOverview {
   exchange: string
   updated_at: number
+  breadth: MarketBreadth
   selected: Ticker | null
   favorites: Ticker[]
   new_listings: Ticker[]
+  major_coins: Ticker[]
+  hot_coins: Ticker[]
   gainers: Ticker[]
   losers: Ticker[]
   triggered_alert_ids: number[]

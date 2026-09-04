@@ -61,7 +61,7 @@ export function SymbolPicker({ exchange, symbol, onSelect }: Props) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-9 min-w-[10rem] items-center justify-between gap-2 rounded-sm border
+        className="focus-ring flex h-9 min-w-[10rem] items-center justify-between gap-2 rounded-sm border
           border-edge bg-panel-soft px-2.5 text-xs font-semibold transition-colors
           hover:border-ink-muted"
       >
@@ -96,7 +96,7 @@ export function SymbolPicker({ exchange, symbol, onSelect }: Props) {
                 type="button"
                 onClick={() => pick(item)}
                 className={clsx(
-                  'flex w-full items-center justify-between px-2.5 py-1.5 text-left text-xs',
+                  'focus-ring flex w-full items-center justify-between px-2.5 py-1.5 text-left text-xs',
                   'transition-colors hover:bg-panel-soft',
                   item.symbol === symbol && 'bg-accent/10 text-accent',
                 )}

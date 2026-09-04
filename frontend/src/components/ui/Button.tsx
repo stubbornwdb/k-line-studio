@@ -36,8 +36,11 @@ export function Button({
       type="button"
       className={clsx(
         'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-sm font-medium',
-        'transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-        'focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent',
+        'transition-[color,background-color,border-color,transform] duration-150',
+        'disabled:cursor-not-allowed disabled:opacity-40',
+        // Presses read as physical; disabled controls stay inert.
+        'active:scale-[0.97] disabled:active:scale-100',
+        'focus-ring',
         VARIANTS[variant],
         SIZES[size],
         active && 'bg-accent/10 text-accent hover:bg-accent/15 hover:text-accent',

@@ -52,9 +52,7 @@ class BybitFuturesProvider(ExchangeProvider):
     async def _result(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
         payload = await self._http.get_json(path, params)
         if str(payload.get("retCode")) != "0":
-            raise UpstreamError(
-                f"Bybit error {payload.get('retCode')}: {payload.get('retMsg')}"
-            )
+            raise UpstreamError(f"Bybit error {payload.get('retCode')}: {payload.get('retMsg')}")
         return payload.get("result") or {}
 
     async def list_symbols(self) -> list[SymbolInfo]:
@@ -87,9 +85,7 @@ class BybitFuturesProvider(ExchangeProvider):
         return symbols
 
     async def fetch_tickers(self) -> list[TickerInfo]:
-        result = await self._result(
-            "/v5/market/tickers", {"category": _CATEGORY}
-        )
+        result = await self._result("/v5/market/tickers", {"category": _CATEGORY})
         return [
             TickerInfo(
                 symbol=row["symbol"],
