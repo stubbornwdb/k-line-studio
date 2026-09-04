@@ -7,6 +7,7 @@ import {
   CircleDollarSign,
   Clock,
   Download,
+  Flame,
   Minus,
   Plus,
   Star,
@@ -26,6 +27,7 @@ import {
 import type {
   AlertDirection,
   AlertKind,
+  MarketBreadth,
   MarketOverview,
   PriceAlertInput,
   Ticker,
@@ -165,14 +167,7 @@ export function MonitorPanel({
   const listingLoading = newListings.isLoading && listingRows.length === 0
   const listingError = newListings.isError ? ((newListings.error as Error)?.message ?? '次新币加载失败') : null
   const listingEmpty = !listingLoading && !listingError && listingRows.length === 0
-  const summary = [
-    { label: '收藏', value: overview?.favorites.length ?? 0 },
-    { label: '主流', value: overview?.major_coins.length ?? 0 },
-    { label: '热门', value: overview?.hot_coins.length ?? 0 },
-    { label: '次新', value: overview?.new_listings.length ?? 0 },
-    { label: '涨', value: overview?.gainers.length ?? 0 },
-    { label: '跌', value: overview?.losers.length ?? 0 },
-  ]
+  const breadth = overview?.breadth
 
   const createAlert = () => {
     const value = Number(threshold)
@@ -236,16 +231,7 @@ export function MonitorPanel({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-6 divide-x divide-edge border-y border-edge bg-panel-soft">
-          {summary.map((item) => (
-            <div key={item.label} className="px-2 py-2">
-              <div className="text-[0.625rem] text-ink-muted">{item.label}</div>
-              <div className="mt-0.5 font-mono text-xs font-semibold text-ink">
-                {item.value}
-              </div>
-            </div>
-          ))}
-        </div>
+        <MarketBreadthBar breadth={breadth} />
 
         {view === 'major' && (
           <div className="mt-3 space-y-2">
@@ -273,6 +259,16 @@ export function MonitorPanel({
             <div className="text-2xs text-ink-muted">
               共 {rows.length} 个主流合约
             </div>
+          </div>
+        )}
+
+        {view === 'hot' && (
+          <div className="mt-3 flex items-start gap-2 text-2xs text-ink-muted">
+            <Flame className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>
+              按成交额、涨跌幅、振幅三项综合排名，已剔除成交额偏低的合约。
+              <span className="font-mono">⇕</span> 为 24h 振幅。
+            </span>
           </div>
         )}
 
@@ -372,6 +368,7 @@ export function MonitorPanel({
                 favoriteId={favoriteIds.get(ticker.symbol)}
                 active={ticker.symbol === currentSymbol}
                 showAge={false}
+                showAmplitude={view === 'hot'}
                 onOpen={onOpen}
                 onToggleFavorite={() => toggleFavorite(ticker.symbol, favoriteIds.get(ticker.symbol))}
               />
@@ -515,6 +512,43 @@ export function MonitorPanel({
   )
 }
 
+/**
+ * Advance/decline across the whole quote universe -- the one number that says
+ * whether a green row is the market or the coin.
+ */
+function MarketBreadthBar({ breadth }: { breadth: MarketBreadth | undefined }) {
+  if (!breadth || breadth.total === 0) {
+    return (
+      <div className="mt-3 border-y border-edge bg-panel-soft px-2.5 py-2 text-2xs text-ink-muted">
+        正在统计全市场涨跌…
+      </div>
+    )
+  }
+  const bullShare = (breadth.advancing / breadth.total) * 100
+  const bearShare = (breadth.declining / breadth.total) * 100
+  return (
+    <div className="mt-3 border-y border-edge bg-panel-soft px-2.5 py-2">
+      <div className="flex items-baseline justify-between gap-2 text-2xs">
+        <span className="text-ink-muted">
+          全市场 <span className="font-mono text-ink">{breadth.total}</span>
+        </span>
+        <span className="font-mono">
+          <span className="text-bull">{breadth.advancing} 涨</span>
+          <span className="text-ink-muted"> / </span>
+          <span className="text-bear">{breadth.declining} 跌</span>
+        </span>
+      </div>
+      <div
+        className="mt-1.5 flex h-1 overflow-hidden rounded-full bg-edge"
+        title={`上涨 ${bullShare.toFixed(0)}% · 下跌 ${bearShare.toFixed(0)}%`}
+      >
+        <div className="bg-bull" style={{ width: `${bullShare}%` }} />
+        <div className="bg-bear" style={{ width: `${bearShare}%` }} />
+      </div>
+    </div>
+  )
+}
+
 function refreshLabel(intervalMs: number | null) {
   if (intervalMs === null) return '自动刷新已关闭'
   return `自动刷新 ${intervalMs / 1000} 秒`
@@ -525,6 +559,7 @@ function TickerRow({
   favoriteId,
   active,
   showAge,
+  showAmplitude,
   onOpen,
   onToggleFavorite,
 }: {
@@ -532,11 +567,16 @@ function TickerRow({
   favoriteId?: number
   active: boolean
   showAge: boolean
+  showAmplitude?: boolean
   onOpen: (symbol: string) => void
   onToggleFavorite: (id?: number) => void
 }) {
   const decimals = priceDecimals(ticker.last)
   const positive = ticker.change_24h_pct >= 0
+  const amplitude =
+    ticker.high_24h !== null && ticker.low_24h !== null && ticker.low_24h > 0
+      ? ((ticker.high_24h - ticker.low_24h) / ticker.low_24h) * 100
+      : null
   return (
     <div
       className={clsx(
@@ -561,6 +601,14 @@ function TickerRow({
           </span>
           {ticker.volume_24h !== null && (
             <span className="text-ink-muted">{formatCompact(ticker.volume_24h)}</span>
+          )}
+          {showAmplitude && amplitude !== null && (
+            <span
+              className="text-ink-muted"
+              title={`24h 振幅 ${amplitude.toFixed(1)}%（最高 / 最低之差），远大于涨跌幅说明来回洗盘`}
+            >
+              ⇕{amplitude.toFixed(0)}%
+            </span>
           )}
         </div>
       </button>
