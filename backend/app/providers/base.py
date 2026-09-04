@@ -262,8 +262,6 @@ class ExchangeProvider(ABC):
             await asyncio.sleep(settings.fetch_page_delay)
 
 
-def _estimated_pages(
-    start_ms: int, end_ms: int, interval: Interval, page_size: int
-) -> int:
+def _estimated_pages(start_ms: int, end_ms: int, interval: Interval, page_size: int) -> int:
     bars = (end_ms - start_ms) // interval.ms + 1
     return max(1, (bars + page_size - 1) // page_size)

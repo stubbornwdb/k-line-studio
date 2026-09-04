@@ -134,7 +134,7 @@ class OkxSwapProvider(ExchangeProvider):
 
 
 def _tick_precision(tick_size: object) -> int | None:
-    """"0.001" -> 3 decimal places."""
+    """ "0.001" -> 3 decimal places."""
     if not isinstance(tick_size, str) or "." not in tick_size:
         return 0 if isinstance(tick_size, str) and tick_size.isdigit() else None
     return len(tick_size.split(".")[1].rstrip("0")) or 0

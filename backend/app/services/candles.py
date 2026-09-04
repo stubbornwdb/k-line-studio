@@ -50,9 +50,7 @@ class DownloadResult:
     covered_ranges: list[Range]
 
 
-def _contiguous_ranges(
-    candles: list[ProviderCandle], start: int, end: int
-) -> list[Range]:
+def _contiguous_ranges(candles: list[ProviderCandle], start: int, end: int) -> list[Range]:
     """Keep returned bounds while treating exchange-side empty bars as covered.
 
     Providers may legitimately omit intervals with no trades, so internal
@@ -166,9 +164,7 @@ class CandleService:
                 fetched += len(download.candles)
                 downloaded_ranges.extend(download.covered_ranges)
                 completed_expected += gap_expected
-            await self._coverage.record(
-                key.exchange, key.symbol, key.interval, downloaded_ranges
-            )
+            await self._coverage.record(key.exchange, key.symbol, key.interval, downloaded_ranges)
 
         # The forming bar is never "covered"; re-fetch it on every request.
         live_bar = False
@@ -226,9 +222,7 @@ class CandleService:
             candles=[CandleOut.from_row(row) for row in rows],
         )
 
-    async def first_candle_time(
-        self, exchange: str, symbol: str, interval: Interval
-    ) -> int:
+    async def first_candle_time(self, exchange: str, symbol: str, interval: Interval) -> int:
         """Find the first exchange candle without scanning the whole history.
 
         Instrument onboarding time is a good lower bound. Probing progressively
@@ -300,9 +294,7 @@ class CandleService:
     # ----------------------------------------------------------------- helpers
 
     @staticmethod
-    def _normalise_window(
-        interval: Interval, start_ms: int, end_ms: int
-    ) -> tuple[Range, bool]:
+    def _normalise_window(interval: Interval, start_ms: int, end_ms: int) -> tuple[Range, bool]:
         """Snap to bar boundaries and enforce the per-request bar cap."""
         if end_ms <= start_ms:
             raise ValidationError("`end` must be after `start`")
@@ -315,9 +307,7 @@ class CandleService:
             return (end - (max_bars - 1) * interval.ms, end), True
         return (start, end), False
 
-    async def _pending_gaps(
-        self, key: SeriesKey, target: Range, *, refresh: bool
-    ) -> list[Range]:
+    async def _pending_gaps(self, key: SeriesKey, target: Range, *, refresh: bool) -> list[Range]:
         if refresh:
             return [target]
         covered = await self._coverage.load(key.exchange, key.symbol, key.interval)

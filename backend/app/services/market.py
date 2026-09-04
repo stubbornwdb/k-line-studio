@@ -26,11 +26,56 @@ _HOT_LIMIT = 30
 _QUOTE_WHITELIST: set[str] = {"USDT"}
 
 MAJOR_BASES: set[str] = {
-    "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
-    "MATIC", "POL", "UNI", "LTC", "BCH", "ATOM", "FIL", "APT", "ARB", "OP",
-    "NEAR", "ICP", "FTM", "ETC", "AAVE", "MKR", "ALGO", "HBAR", "SUI", "SEI",
-    "TIA", "INJ", "STX", "RUNE", "SAND", "MANA", "AXS", "IMX", "PEPE", "WIF",
-    "FLOKI", "SHIB", "TON", "TRX", "CRV", "SNX", "LDO", "RENDER", "FET", "TAO",
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB",
+    "XRP",
+    "DOGE",
+    "ADA",
+    "AVAX",
+    "DOT",
+    "LINK",
+    "MATIC",
+    "POL",
+    "UNI",
+    "LTC",
+    "BCH",
+    "ATOM",
+    "FIL",
+    "APT",
+    "ARB",
+    "OP",
+    "NEAR",
+    "ICP",
+    "FTM",
+    "ETC",
+    "AAVE",
+    "MKR",
+    "ALGO",
+    "HBAR",
+    "SUI",
+    "SEI",
+    "TIA",
+    "INJ",
+    "STX",
+    "RUNE",
+    "SAND",
+    "MANA",
+    "AXS",
+    "IMX",
+    "PEPE",
+    "WIF",
+    "FLOKI",
+    "SHIB",
+    "TON",
+    "TRX",
+    "CRV",
+    "SNX",
+    "LDO",
+    "RENDER",
+    "FET",
+    "TAO",
 }
 
 
@@ -100,9 +145,7 @@ class MarketService:
                 continue
             value = ticker.last if alert.kind == "price" else ticker.change_24h_pct
             matched = (
-                value >= alert.threshold
-                if alert.direction == "above"
-                else value <= alert.threshold
+                value >= alert.threshold if alert.direction == "above" else value <= alert.threshold
             )
             if matched:
                 stamp = now_ms()
@@ -130,10 +173,7 @@ class MarketService:
         gainers = sorted(all_rows, key=lambda row: row.change_24h_pct, reverse=True)[:_LIST_LIMIT]
         losers = sorted(all_rows, key=lambda row: row.change_24h_pct)[:_LIST_LIMIT]
         major_coins = sorted(
-            (
-                row for row in all_rows
-                if self._is_major(snapshot, row.symbol)
-            ),
+            (row for row in all_rows if self._is_major(snapshot, row.symbol)),
             key=lambda row: -(row.volume_24h or 0),
         )[:_MAJOR_LIMIT]
         hot_coins = sorted(
